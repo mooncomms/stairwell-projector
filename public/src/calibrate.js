@@ -42,6 +42,9 @@ export class Calibrator {
   changed() {
     this.dirty = true;
     this.onChange(this.cal);
+    // Autosave shortly after the last edit, so a reload or crash never loses work.
+    clearTimeout(this.autosave);
+    this.autosave = setTimeout(() => this.save().catch(() => {}), 1000);
   }
 
   select(dir) {
@@ -96,15 +99,17 @@ export class Calibrator {
     if (best >= 0) {
       this.selected = best;
       this.dragging = true;
-      this.grab = { x: x - this.handles()[best].pt.x, y: y - this.handles()[best].pt.y };
+      // No grab offset: the handle jumps to the cursor, so it can reach the very edge
+      // of the frame (an offset left it short by up to 40 px).
+      this.drag(x, y);
     }
   }
 
   drag(x, y) {
     if (!this.dragging) return;
     const h = this.handles()[this.selected];
-    h.pt.x = x - this.grab.x;
-    h.pt.y = y - this.grab.y;
+    h.pt.x = x;
+    h.pt.y = y;
     this.changed();
   }
 
@@ -128,6 +133,20 @@ export class Calibrator {
     ctx.closePath();
     ctx.stroke();
 
+    // Handles pushed past the frame (keyboard can do that): an arrow on the edge.
+    const fw = ctx.canvas.clientWidth, fh = ctx.canvas.clientHeight;
+    hs.forEach((h, i) => {
+      const { x, y } = h.pt;
+      if (x >= 0 && y >= 0 && x <= fw && y <= fh) return;
+      const cx = Math.max(12, Math.min(fw - 12, x)), cy = Math.max(12, Math.min(fh - 12, y));
+      const a = Math.atan2(y - cy, x - cx);
+      ctx.fillStyle = i === this.selected ? '#ff3' : '#0ff';
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(a) * 12, cy + Math.sin(a) * 12);
+      ctx.lineTo(cx + Math.cos(a + 2.5) * 10, cy + Math.sin(a + 2.5) * 10);
+      ctx.lineTo(cx + Math.cos(a - 2.5) * 10, cy + Math.sin(a - 2.5) * 10);
+      ctx.fill();
+    });
     hs.forEach((h, i) => {
       const sel = i === this.selected;
       const r = h.corner >= 0 ? 14 : 9;

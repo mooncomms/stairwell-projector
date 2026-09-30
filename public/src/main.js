@@ -9,8 +9,15 @@ import trippy from './scenes/trippy.js';
 import nature from './scenes/nature.js';
 import icarus from './scenes/icarus.js';
 import painting from './scenes/painting.js';
+import underwater from './scenes/underwater.js';
+import destroyer from './scenes/destroyer.js';
+import jellyfish from './scenes/jellyfish.js';
+import rain from './scenes/rain.js';
+import aurora from './scenes/aurora.js';
+import sky from './scenes/sky.js';
+import lavalamp from './scenes/lavalamp.js';
 
-const SCENES = [starfield, boids, trippy, nature, icarus, painting, testcard];
+const SCENES = [starfield, boids, trippy, nature, icarus, painting, underwater, destroyer, jellyfish, rain, aurora, sky, lavalamp, testcard];
 
 const [config, savedCal] = await Promise.all([
   fetch('/api/config').then((r) => r.json()),
@@ -76,6 +83,7 @@ new p5((p) => {
   }
 
   function setCalibrating(on) {
+    if (calib.active && !on && calib.dirty) calib.save();   // leaving calibration: keep it
     calib.active = on;
     on ? p.cursor(p.CROSS) : p.noCursor();
     reportState();
@@ -165,6 +173,7 @@ new p5((p) => {
     switch (cmd.type) {
       case 'scene': scenes.go(cmd.name); break;
       case 'next': scenes.next(); break;
+      case 'prev': scenes.prev(); break;
       case 'blackout': blackout = cmd.on ?? !blackout; break;
       case 'hud': hud = !hud; break;
       case 'brightness': calib.set('brightness', clamp01(cmd.v ?? c.brightness + (cmd.d || 0))); break;
@@ -200,6 +209,7 @@ new p5((p) => {
     }
     const m = {
       c: { type: 'calibrate' }, n: { type: 'next' }, h: { type: 'hud' }, b: { type: 'blackout' },
+      ArrowRight: { type: 'next' }, ArrowLeft: { type: 'prev' },
       ',': { type: 'flatten', d: -0.1 }, '.': { type: 'flatten', d: 0.1 },
       ';': { type: 'brightness', d: -0.05 }, "'": { type: 'brightness', d: 0.05 },
     }[k];

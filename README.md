@@ -7,7 +7,7 @@ npm start            # http://localhost:8080   (remote: http://<box-ip>:8080/rem
 npm test             # homography math
 ```
 
-URL flags: `?scene=boids` · `?calibrate` · `?hud` · `?still` (freeze motion, for comparing scenes against their originals) · `?lids` (painting scene: hold eyelids shut)
+URL flags: `?scene=boids` · `?calibrate` · `?hud` · `?still` (freeze motion, for comparing scenes against their originals) · `?lids` (painting scene: hold eyelids shut) · `?seek=90` (destroyer scene: start 90 s into its loop)
 
 ## Calibrating on the wall
 1. Mount the projector **rotated 90°** (portrait). Turn the projector's own keystone **off**.
@@ -19,9 +19,9 @@ URL flags: `?scene=boids` · `?calibrate` · `?hud` · `?still` (freeze motion, 
    - `gray`: judge whether brightness is even.
    - `frame`: shows the whole projector frame, so you can see where the beam lands.
 6. Press `,` and `.` to set **flatten**. It evens out brightness when the projector hits the wall at a steep angle, at the cost of peak brightness.
-7. Press `s` to save. The calibration is stored in `data/calibration.json`.
+7. Calibration saves itself about a second after each change, and when you leave calibration (`s` also saves immediately). It's stored in `data/calibration.json` and loaded on every start.
 
-Other keys: `n` next scene · `1–9` pick scene · `b` blackout · `h` HUD/fps · `;` `'` brightness.
+Other keys: `←` / `→` previous / next scene (outside calibration) · `n` next scene · `1–9` pick scene · `b` blackout · `h` HUD/fps · `;` `'` brightness.
 
 ## Writing a scene
 Create a file in `public/src/scenes/`, then add it to `SCENES` in `main.js` and to the `playlist` in `data/config.json`:
@@ -55,6 +55,14 @@ Put images in `media/paintings/`. The `painting` scene fits each one to the wall
 ```
 
 `every` is the random gap between blinks, in seconds. Open `?scene=painting&lids` to hold every lid shut while you check the positions.
+
+## Live sky
+The `sky` scene shows the real sky right now: sun position, colours, clouds, stars and moon phase. Set it up in `data/config.json` under `"sky"`:
+- `lat` and `lon`: your location.
+- `facing`: which way the "window" looks, in degrees (270 = west, so sunsets come into view).
+- `clouds`: cloud cover, 0–1.
+
+To preview a time, use `?scene=sky&hour=20.5`. `&speed=600` makes time run 600× faster.
 
 ## Deploying on the projector box
 - Copy the repo to `~/stairwall` and install Node 18 or later plus Chromium.

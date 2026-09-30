@@ -1,11 +1,12 @@
 {
   "wall": { "widthM": 1.2, "heightM": 2.4 },
   "contentHeight": 1600,
-  "playlist": ["painting", "icarus", "starfield", "boids", "trippy", "nature", "painting"],
-  "sceneSeconds": 300,
+  "playlist": ["painting", "icarus", "starfield", "boids", "trippy", "underwater", "destroyer", "jellyfish", "rain", "aurora", "sky", "lavalamp"],
+  "sceneSeconds": 600,
   "crossfadeSeconds": 4,
   "paintingSeconds": 120,
   "brightness": 1.0,
+  "sky": { "lat": 40.4, "lon": -3.7, "facing": 270, "clouds": 0.45 },
   "schedule": null,
   "scheduleExample": { "on": "18:00", "off": "00:30" }
 }

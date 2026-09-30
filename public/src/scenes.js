@@ -59,10 +59,14 @@ export class SceneManager {
     this.sinceSwitch = 0;
   }
 
-  next() {
+  next() { this.step(1); }
+  prev() { this.step(-1); }
+
+  step(dir) {
     const list = this.playlist.length ? this.playlist : this.names;
     const cur = (this.incoming || this.current)?.def.name;
-    this.go(list[(list.indexOf(cur) + 1) % list.length]);
+    const i = list.indexOf(cur);
+    this.go(list[i < 0 ? 0 : (i + dir + list.length) % list.length]);
   }
 
   get name() { return (this.incoming || this.current)?.def.name; }
