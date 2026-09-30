@@ -2,7 +2,7 @@
 import { Output } from './output.js';
 import { Calibrator, defaultCalibration } from './calibrate.js';
 import { SceneManager } from './scenes.js';
-import testcard, { fill } from './scenes/testcard.js';
+import testcard, { fill, levels } from './scenes/testcard.js';
 import starfield from './scenes/starfield.js';
 import boids from './scenes/boids.js';
 import trippy from './scenes/trippy.js';
@@ -74,7 +74,7 @@ new p5((p) => {
     if (patternName === name) return;
     if (patternScene) { patternScene.inst.dispose?.(); patternScene.g.remove(); patternScene = null; }
     patternName = name;
-    const def = { grid: testcard, white: fill(255), gray: fill(128) }[name];
+    const def = { grid: testcard, edges: fill(190), levels, white: fill(255), gray: fill(128) }[name];
     if (def) {
       const g = p.createGraphics(W, H);
       g.pixelDensity(1);
@@ -111,13 +111,17 @@ new p5((p) => {
 
     if (calib.active) setPattern(calib.pattern);
     if (!showContent && patternScene) {
-      out.render(patternScene.g, null, 0, { brightness: 1, flatten: cal.flatten, maskOn: true });
+      out.render(patternScene.g, null, 0, {
+        brightness: 1, flatten: calib.pattern === 'levels' ? 0 : cal.flatten, maskOn: true,
+        edgeCheck: calib.pattern === 'edges', gain: cal.gain ?? [1, 1, 1],
+      });
     } else {
       const { a, b, mix } = scenes.layers();
       out.render(a, b, mix, {
         brightness: (cal.brightness ?? 1) * power,
         flatten: cal.flatten ?? 0,
         maskOn: !(calib.active && calib.pattern === 'frame'),
+        gain: cal.gain ?? [1, 1, 1],
       });
     }
     drawOverlay();
@@ -141,6 +145,7 @@ new p5((p) => {
         `CALIBRATING · ${calib.pattern}${calib.dirty ? ' · UNSAVED' : ''}`,
         `bright ${c.brightness.toFixed(2)} · flat ${c.flatten.toFixed(2)}`,
         `feather ${c.feather} · inset ${c.inset}`,
+        `colour ${['R', 'G', 'B'].map((k, i) => `${k} ${(c.gain ?? [1, 1, 1])[i].toFixed(2)}`).join(' ')}`,
         'drag · Tab select · arrows nudge',
         '  (shift ×10, alt ×0.25)',
         'a add pt · del remove · p pattern',
@@ -178,6 +183,12 @@ new p5((p) => {
       case 'hud': hud = !hud; break;
       case 'brightness': calib.set('brightness', clamp01(cmd.v ?? c.brightness + (cmd.d || 0))); break;
       case 'flatten': calib.set('flatten', clamp01(cmd.v ?? c.flatten + (cmd.d || 0))); break;
+      case 'gain': {
+        const gain = [...(c.gain ?? [1, 1, 1])];
+        gain[cmd.c] = Math.max(0.3, Math.min(1, cmd.v));
+        calib.set('gain', gain);
+        break;
+      }
       case 'calibrate': setCalibrating(cmd.on ?? !calib.active); break;
       case 'pattern': calib.nextPattern(); break;
       case 'select': calib.select(cmd.dir || 1); break;
@@ -238,7 +249,7 @@ new p5((p) => {
           scenes: SCENES.map((s) => s.name), scene: scenes.name, blackout,
           calibrating: calib.active, pattern: calib.pattern, dirty: calib.dirty,
           selected: calib.selected, handles: calib.handles().length,
-          brightness: c.brightness, flatten: c.flatten, feather: c.feather, inset: c.inset,
+          brightness: c.brightness, flatten: c.flatten, feather: c.feather, inset: c.inset, gain: c.gain ?? [1, 1, 1],
         }),
       }).catch(() => {});
     }, 150);

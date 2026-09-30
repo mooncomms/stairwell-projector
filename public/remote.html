@@ -43,6 +43,11 @@
   <label><span>Brightness</span><input type="range" id="brightness" min="0" max="1" step="0.01"><output id="brightnessV"></output></label>
   <label><span>Flatten</span><input type="range" id="flatten" min="0" max="1" step="0.01"><output id="flattenV"></output></label>
 
+  <h2>Colour balance</h2>
+  <label><span>Red</span><input type="range" id="gain0" min="0.3" max="1" step="0.01"><output id="gain0V"></output></label>
+  <label><span>Green</span><input type="range" id="gain1" min="0.3" max="1" step="0.01"><output id="gain1V"></output></label>
+  <label><span>Blue</span><input type="range" id="gain2" min="0.3" max="1" step="0.01"><output id="gain2V"></output></label>
+
   <h2>Calibration</h2>
   <div class="row">
     <button id="calToggle" data-cmd='{"type":"calibrate"}'>Calibrate</button>
@@ -104,6 +109,16 @@
       });
     }
 
+    // Colour balance: one slider per channel.
+    [0, 1, 2].forEach((c) => {
+      let t = 0;
+      $('gain' + c).addEventListener('input', (e) => {
+        $('gain' + c + 'V').textContent = Number(e.target.value).toFixed(2);
+        clearTimeout(t);
+        t = setTimeout(() => send({ type: 'gain', c, v: Number(e.target.value) }), 40);
+      });
+    });
+
     function render() {
       const s = state;
       $('status').innerHTML = s.scene ? `showing <b>${s.scene}</b>${s.calibrating ? ' · calibrating' : ''}` : 'waiting for projector page…';
@@ -116,6 +131,9 @@
       $('sel').textContent = s.handles ? `${s.selected + 1} / ${s.handles}` : '–';
       $('save').classList.toggle('warn', !!s.dirty);
       $('save').textContent = s.dirty ? 'Save (unsaved changes)' : 'Saved';
+      (s.gain || [1, 1, 1]).forEach((v, c) => {
+        if (document.activeElement !== $('gain' + c)) { $('gain' + c).value = v; $('gain' + c + 'V').textContent = Number(v).toFixed(2); }
+      });
       for (const id of ['brightness', 'flatten']) {
         if (document.activeElement !== $(id) && s[id] != null) {
           $(id).value = s[id];

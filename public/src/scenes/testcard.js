@@ -53,3 +53,32 @@ export function fill(level) {
     },
   };
 }
+
+// Levels: for setting the projector's Brightness (black level) and Contrast (white level).
+// Top half: near-black steps on black — lower Brightness until the first steps just
+// vanish, then raise it until "2" is barely visible. Bottom half: near-white steps on
+// white — raise Contrast until the last steps start merging, then back off.
+export const levels = {
+  name: 'levels',
+  create(p, g, { W, H }) {
+    const darks = [0, 2, 4, 6, 8, 12, 16, 20, 28, 36];
+    const lights = [200, 215, 225, 232, 238, 243, 247, 250, 253, 255];
+    g.background(0);
+    g.noStroke();
+    g.textAlign(p.CENTER, p.CENTER);
+    g.textSize(W / 30);
+    const cols = 2, rows = 5, cw = W / cols, ch = H / 2 / rows;
+    darks.forEach((v, i) => {
+      const x = (i % cols) * cw, y = Math.floor(i / cols) * ch;
+      g.fill(v); g.rect(x + cw * 0.2, y + ch * 0.2, cw * 0.6, ch * 0.6);
+      g.fill(90); g.text(v, x + cw / 2, y + ch * 0.1);
+    });
+    g.fill(255); g.rect(0, H / 2, W, H / 2);
+    lights.forEach((v, i) => {
+      const x = (i % cols) * cw, y = H / 2 + Math.floor(i / cols) * ch;
+      g.fill(v); g.rect(x + cw * 0.2, y + ch * 0.2, cw * 0.6, ch * 0.6);
+      g.fill(150); g.text(v, x + cw / 2, y + ch * 0.1);
+    });
+    return { draw() {} };
+  },
+};

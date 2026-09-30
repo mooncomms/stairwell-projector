@@ -30,7 +30,9 @@ uniform int uPolyN;               // number of segments
 uniform float uFeather;
 uniform float uInset;
 uniform float uMaskOn;
+uniform float uEdgeCheck;
 uniform float uBright;
+uniform vec3 uGain;           // colour balance, applied to everything shown
 uniform float uFlat;
 uniform float uWmin;
 
@@ -64,11 +66,20 @@ void main() {
     vec2 g = step(fract(px / 80.0), vec2(1.5 / 80.0));
     col += 0.25 * max(g.x, g.y);
     if (inQuad) col = mix(texture2D(uTexA, uv).rgb, texture2D(uTexB, uv).rgb, uMix);
-    gl_FragColor = vec4(col * uBright, 1.0);
+    gl_FragColor = vec4(col * uBright * uGain, 1.0);
     return;
   }
 
   float sd = sdPoly(px) + uInset;
+  if (uEdgeCheck > 0.5) {
+    // Edge check: hard boundary, content inside, red stripes everywhere else. Where
+    // the colour change lands on the real wall corner, the mask edge is right.
+    float stripe = step(0.5, fract((px.x + px.y) / 28.0));
+    vec3 outside = vec3(0.95, 0.06, 0.04) * stripe;
+    vec3 inner = texture2D(uTexA, clamp(uv, 0.0, 1.0)).rgb;
+    gl_FragColor = vec4((sd < 0.0 && uValid > 0.5 ? inner : outside) * uBright * uGain, 1.0);
+    return;
+  }
   float inside = uFeather > 0.0 ? 1.0 - smoothstep(-uFeather * 0.5, uFeather * 0.5, sd) : step(sd, 0.0);
   vec3 col = vec3(0.0);
   if (inside > 0.0 && uValid > 0.5) {
@@ -79,7 +90,7 @@ void main() {
     float gain = min(pow(uWmin / abs(h.z), 3.0), 1.0);
     col *= pow(mix(1.0, gain, uFlat), 1.0 / 2.2);
   }
-  gl_FragColor = vec4(col * inside * uBright, 1.0);
+  gl_FragColor = vec4(col * inside * uBright * uGain, 1.0);
 }`;
 
 export function maskPolygon(cal) {
@@ -115,7 +126,7 @@ export class Output {
   }
 
   // texA/texB: p5.Graphics in wall space. mix: 0 → A, 1 → B.
-  render(texA, texB, mix, { brightness = 1, flatten = 0, maskOn = true } = {}) {
+  render(texA, texB, mix, { brightness = 1, flatten = 0, maskOn = true, edgeCheck = false, gain = [1, 1, 1] } = {}) {
     const p = this.p, s = this.shader, cal = this.cal;
     p.shader(s);
     s.setUniform('uRes', [p.width, p.height]);
@@ -130,7 +141,9 @@ export class Output {
     s.setUniform('uFeather', cal.feather ?? 1.5);
     s.setUniform('uInset', cal.inset ?? 0);
     s.setUniform('uMaskOn', maskOn ? 1 : 0);
+    s.setUniform('uEdgeCheck', edgeCheck ? 1 : 0);
     s.setUniform('uBright', brightness);
+    s.setUniform('uGain', gain);
     s.setUniform('uFlat', flatten);
     s.setUniform('uWmin', this.wmin);
     p.noStroke();

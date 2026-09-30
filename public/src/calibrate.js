@@ -2,7 +2,9 @@
 // corners land in projector pixels). Extra edge points only bend the mask, for walls
 // whose edges aren't perfectly straight.
 
-export const PATTERNS = ['grid', 'white', 'gray', 'content', 'frame'];
+// edges: grey inside the mask, red stripes outside it — line the colour change up with
+// the real corners, checking from where people actually look.
+export const PATTERNS = ['grid', 'edges', 'levels', 'white', 'gray', 'content', 'frame'];
 
 export function defaultCalibration(w, h) {
   // Centered 1:2 portrait rectangle, 85% of the screen height.
@@ -14,6 +16,7 @@ export function defaultCalibration(w, h) {
     inset: 0,
     brightness: 1,
     flatten: 0,
+    gain: [1, 1, 1],          // colour balance: per-channel output gain (≤ 1)
   };
 }
 

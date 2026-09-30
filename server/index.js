@@ -119,7 +119,7 @@ const routes = {
   },
   'GET /api/events': async (req, res) => {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
-    res.write(': hi\n\n');
+    res.write('retry: 1000\n: hi\n\n');   // reconnect quickly after a server restart
     if (lastState) res.write(`event: state\ndata: ${JSON.stringify(lastState)}\n\n`);
     clients.add(res);
     req.on('close', () => clients.delete(res));
