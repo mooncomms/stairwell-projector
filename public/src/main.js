@@ -4,6 +4,7 @@ import { Calibrator, defaultCalibration } from './calibrate.js';
 import { SceneManager } from './scenes.js';
 import testcard, { fill, levels } from './scenes/testcard.js';
 import starfield from './scenes/starfield.js';
+import nebula from './scenes/nebula.js';
 import boids from './scenes/boids.js';
 import trippy from './scenes/trippy.js';
 import nature from './scenes/nature.js';
@@ -17,7 +18,7 @@ import aurora from './scenes/aurora.js';
 import sky from './scenes/sky.js';
 import lavalamp from './scenes/lavalamp.js';
 
-const SCENES = [starfield, boids, trippy, nature, icarus, painting, underwater, destroyer, jellyfish, rain, aurora, sky, lavalamp, testcard];
+const SCENES = [starfield, nebula, boids, trippy, nature, icarus, painting, underwater, destroyer, jellyfish, rain, aurora, sky, lavalamp, testcard];
 
 const [config, savedCal] = await Promise.all([
   fetch('/api/config').then((r) => r.json()),
