@@ -8,8 +8,9 @@ import boids from './scenes/boids.js';
 import trippy from './scenes/trippy.js';
 import nature from './scenes/nature.js';
 import icarus from './scenes/icarus.js';
+import painting from './scenes/painting.js';
 
-const SCENES = [starfield, boids, trippy, nature, icarus, testcard];
+const SCENES = [starfield, boids, trippy, nature, icarus, painting, testcard];
 
 const [config, savedCal] = await Promise.all([
   fetch('/api/config').then((r) => r.json()),

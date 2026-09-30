@@ -7,7 +7,7 @@ npm start            # http://localhost:8080   (remote: http://<box-ip>:8080/rem
 npm test             # homography math
 ```
 
-URL flags: `?scene=boids` · `?calibrate` · `?hud`
+URL flags: `?scene=boids` · `?calibrate` · `?hud` · `?still` (freeze motion, for comparing scenes against their originals) · `?lids` (painting scene: hold eyelids shut)
 
 ## Calibrating on the wall
 1. Mount the projector **rotated 90°** (portrait). Turn the projector's own keystone **off**.
@@ -44,6 +44,17 @@ The top-left of `g` is the top-left corner of the wall, and `pxPerM` converts me
 
 ## Media
 Put photos (`jpg`/`png`/`webp`) and videos (`mp4`/`webm`) in `media/`. The `nature` scene shuffles them, crops them to fill the wall, and plays them with slow zooms and crossfades. Portrait or 4K material works best. Pexels, Pixabay and NASA's image library are good free sources.
+
+## Paintings
+Put images in `media/paintings/`. The `painting` scene fits each one to the wall's width, sits it on the bottom edge, and grows the missing sky from the painting's own top edge. Tweak the look in `SKY` at the top of `public/src/scenes/painting.js`. The scene cycles through the paintings every `paintingSeconds`.
+
+**Blinking:** add a sidecar file with the same name as the image (for example `american-gothic.json`) that lists each figure's eyes. Coordinates are `[centre x, centre y, width, height]` of each eye opening, in the image's own pixels:
+
+```json
+{ "blinkers": [ { "eyes": [[199, 330, 38, 14], [259, 333, 34, 12]], "every": [2.5, 6] } ] }
+```
+
+`every` is the random gap between blinks, in seconds. Open `?scene=painting&lids` to hold every lid shut while you check the positions.
 
 ## Deploying on the projector box
 - Copy the repo to `~/stairwall` and install Node 18 or later plus Chromium.

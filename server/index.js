@@ -98,9 +98,13 @@ const routes = {
   },
   'GET /api/config': async (req, res) => json(res, 200, await readJson('config.json', {})),
   'GET /api/media': async (req, res) => {
+    // Optional ?dir=<subfolder> (e.g. paintings); plain folder names only.
+    const dir = new URL(req.url, 'http://x').searchParams.get('dir') || '';
+    if (dir && !/^[\w-]+$/.test(dir)) return json(res, 400, { error: 'bad dir' });
+    const prefix = dir ? dir + '/' : '';
     let files = [];
-    try { files = (await fsp.readdir(MEDIA)).filter((f) => MEDIA_EXT.test(f)).sort(); } catch {}
-    json(res, 200, files.map((f) => ({ url: '/media/' + encodeURIComponent(f), video: /\.(mp4|webm|mov)$/i.test(f) })));
+    try { files = (await fsp.readdir(path.join(MEDIA, dir))).filter((f) => MEDIA_EXT.test(f)).sort(); } catch {}
+    json(res, 200, files.map((f) => ({ url: '/media/' + prefix + encodeURIComponent(f), video: /\.(mp4|webm|mov)$/i.test(f) })));
   },
   'POST /api/cmd': async (req, res) => {
     const cmd = await readBody(req, 1e4);
