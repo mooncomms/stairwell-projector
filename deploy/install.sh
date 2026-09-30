@@ -47,6 +47,29 @@ X-GNOME-Autostart-enabled=true
 EOF
 echo ok
 
+say "Allowing the phone remote to sleep / shut down the box…"
+# Newer polkit (JavaScript rules)…
+sudo tee /etc/polkit-1/rules.d/50-stairwall-power.rules >/dev/null <<EOF
+polkit.addRule(function (action, subject) {
+  if (subject.user == "$USER" && /^org\\.freedesktop\\.login1\\.(power-off|suspend|hibernate)(-multiple-sessions|-ignore-inhibit)?$/.test(action.id)) {
+    return polkit.Result.YES;
+  }
+});
+EOF
+# …and older polkit (.pkla), e.g. Ubuntu 22.04. Harmless where unused.
+if [ -d /etc/polkit-1/localauthority ]; then
+  sudo mkdir -p /etc/polkit-1/localauthority/50-local.d
+  sudo tee /etc/polkit-1/localauthority/50-local.d/50-stairwall-power.pkla >/dev/null <<EOF
+[stairwall power]
+Identity=unix-user:$USER
+Action=org.freedesktop.login1.power-off;org.freedesktop.login1.power-off-multiple-sessions;org.freedesktop.login1.suspend;org.freedesktop.login1.suspend-multiple-sessions
+ResultAny=yes
+ResultInactive=yes
+ResultActive=yes
+EOF
+fi
+echo ok
+
 if command -v ufw >/dev/null && sudo ufw status | grep -q "Status: active"; then
   say "Opening port 8080 to the local network…"
   sudo ufw allow from 192.168.0.0/16 to any port 8080 proto tcp

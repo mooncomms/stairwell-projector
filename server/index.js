@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PUBLIC = path.join(ROOT, 'public');
@@ -111,6 +112,21 @@ const routes = {
     if (!cmd?.type) return json(res, 400, { error: 'missing type' });
     broadcast('cmd', cmd);
     json(res, 200, { ok: true });
+  },
+  // Power: sleep (suspend) or shut down the box. The install script grants this user
+  // permission to do so without a password. STAIRWALL_POWER_DRY=1 only logs (testing).
+  'POST /api/power': async (req, res) => {
+    const { action } = (await readBody(req, 1e3)) || {};
+    const verb = { sleep: 'suspend', shutdown: 'poweroff' }[action];
+    if (!verb) return json(res, 400, { error: 'action must be sleep or shutdown' });
+    json(res, 200, { ok: true, action });
+    if (action === 'shutdown') broadcast('cmd', { type: 'blackout', on: true });   // fade out first
+    setTimeout(() => {
+      if (process.env.STAIRWALL_POWER_DRY) return console.log(`[dry run] systemctl ${verb}`);
+      const child = spawn('systemctl', [verb], { stdio: 'ignore', detached: true });
+      child.on('error', (e) => console.error('power:', e.message));
+      child.unref();
+    }, action === 'shutdown' ? 2500 : 300);
   },
   'POST /api/state': async (req, res) => {
     lastState = await readBody(req);

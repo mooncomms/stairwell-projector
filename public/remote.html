@@ -48,6 +48,12 @@
   <label><span>Green</span><input type="range" id="gain1" min="0.3" max="1" step="0.01"><output id="gain1V"></output></label>
   <label><span>Blue</span><input type="range" id="gain2" min="0.3" max="1" step="0.01"><output id="gain2V"></output></label>
 
+  <h2>Power</h2>
+  <div class="row">
+    <button data-power="sleep">Sleep</button>
+    <button data-power="shutdown" class="warn">Shut down</button>
+  </div>
+
   <h2>Calibration</h2>
   <div class="row">
     <button id="calToggle" data-cmd='{"type":"calibrate"}'>Calibrate</button>
@@ -92,6 +98,13 @@
       const b = e.target.closest('button');
       if (!b) return;
       if (b.dataset.cmd) send(JSON.parse(b.dataset.cmd));
+      if (b.dataset.power) {
+        const what = b.dataset.power === 'sleep' ? 'Put the box to sleep?' : 'Shut the box down?';
+        if (confirm(what)) {
+          fetch('/api/power', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action: b.dataset.power }) });
+          $('status').textContent = b.dataset.power === 'sleep' ? 'going to sleep…' : 'shutting down…';
+        }
+      }
       if (b.dataset.scene) send({ type: 'scene', name: b.dataset.scene });
       if (b.dataset.nudge) { const [x, y] = b.dataset.nudge.split(',').map(Number); send({ type: 'nudge', dx: x * step, dy: y * step }); }
       if (b.dataset.step) {

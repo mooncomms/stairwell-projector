@@ -88,6 +88,14 @@ Any small Linux PC that can run Chromium with GPU acceleration works. An Intel G
 - **Editing directly on the box:** VS Code's Remote-SSH works well.
 - The server has no password, so keep it to your home network and don't forward port 8080 on your router. For access away from home, use a VPN such as Tailscale.
 
+**Power:**
+- The phone remote has **Sleep** and **Shut down** buttons. Shut down fades the wall to black first. `install.sh` allows this without a password.
+- **Waking from the phone (Wake-on-LAN):** this needs the box on **wired Ethernet**, since Wi-Fi wake is rarely supported.
+  1. Enable "Wake on LAN" (sometimes called "PCIE PME wake") in the BIOS. For waking from full shutdown, also disable "ErP".
+  2. Make it persistent in Linux: `nmcli connection modify "<wired connection>" 802-3-ethernet.wake-on-lan magic`.
+  3. On the phone, install any Wake-on-LAN app and give it the box's MAC address (`ip link` shows it).
+- **Waking with a remote control:** a cheap 2.4 GHz "air mouse" remote with a USB dongle acts as a keyboard. Its arrow keys change scenes, and its power button can wake the box from sleep once "USB wake" is enabled in the BIOS.
+
 **Settings** (`data/config.json`):
 - `playlist` and `sceneSeconds` (0 = never auto-advance)
 - `crossfadeSeconds`
