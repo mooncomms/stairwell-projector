@@ -1,0 +1,7 @@
+node_modules/
+# Device-specific calibration lives on the projector box.
+data/calibration.json
+data/*.tmp
+# Your media library.
+media/*
+!media/.gitkeep

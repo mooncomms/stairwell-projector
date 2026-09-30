@@ -1,0 +1,10 @@
+{
+  "wall": { "widthM": 1.2, "heightM": 2.4 },
+  "contentHeight": 1600,
+  "playlist": ["icarus", "starfield", "boids", "trippy", "nature"],
+  "sceneSeconds": 300,
+  "crossfadeSeconds": 4,
+  "brightness": 1.0,
+  "schedule": null,
+  "scheduleExample": { "on": "18:00", "off": "00:30" }
+}

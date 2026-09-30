@@ -1,0 +1,132 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>stairwall remote</title>
+  <style>
+    :root { --bg: #0d0f14; --panel: #171a22; --line: #262a36; --fg: #e6e8ee; --dim: #8a90a0; --accent: #6cf0c2; --warn: #ffb454; }
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.4 system-ui, sans-serif; padding: 12px 16px 40px; }
+    h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); margin: 22px 0 8px; }
+    .status { color: var(--dim); font-size: 13px; min-height: 1.4em; }
+    .status b { color: var(--accent); font-weight: 600; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; }
+    button { background: var(--panel); color: var(--fg); border: 1px solid var(--line); border-radius: 10px; padding: 14px 8px; font: inherit; touch-action: manipulation; }
+    button:active { background: var(--line); }
+    button.on { border-color: var(--accent); color: var(--accent); }
+    button.warn { border-color: var(--warn); color: var(--warn); }
+    label { display: flex; align-items: center; gap: 10px; margin: 10px 0; }
+    label span { width: 84px; color: var(--dim); }
+    label output { width: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+    input[type=range] { flex: 1; accent-color: var(--accent); }
+    .pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; max-width: 280px; margin: 0 auto; }
+    .pad button { padding: 20px 0; font-size: 20px; }
+    .row { display: flex; gap: 8px; margin: 8px 0; }
+    .row > * { flex: 1; }
+    #calib { display: none; }
+    #calib.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="status" id="status">connecting…</div>
+
+  <h2>Scene</h2>
+  <div class="grid" id="scenes"></div>
+  <div class="row">
+    <button data-cmd='{"type":"next"}'>Next ▸</button>
+    <button id="blackout" data-cmd='{"type":"blackout"}'>Blackout</button>
+  </div>
+
+  <h2>Light</h2>
+  <label><span>Brightness</span><input type="range" id="brightness" min="0" max="1" step="0.01"><output id="brightnessV"></output></label>
+  <label><span>Flatten</span><input type="range" id="flatten" min="0" max="1" step="0.01"><output id="flattenV"></output></label>
+
+  <h2>Calibration</h2>
+  <div class="row">
+    <button id="calToggle" data-cmd='{"type":"calibrate"}'>Calibrate</button>
+    <button id="pattern" data-cmd='{"type":"pattern"}'>Pattern</button>
+  </div>
+  <div id="calib">
+    <div class="row">
+      <button data-cmd='{"type":"select","dir":-1}'>◂ Point</button>
+      <button id="sel" disabled>–</button>
+      <button data-cmd='{"type":"select","dir":1}'>Point ▸</button>
+    </div>
+    <div class="row" id="steps">
+      <button data-step="0.25">0.25px</button><button data-step="1" class="on">1px</button><button data-step="10">10px</button>
+    </div>
+    <div class="pad">
+      <span></span><button data-nudge="0,-1">▲</button><span></span>
+      <button data-nudge="-1,0">◀</button><span></span><button data-nudge="1,0">▶</button>
+      <span></span><button data-nudge="0,1">▼</button><span></span>
+    </div>
+    <div class="row">
+      <button data-cmd='{"type":"addPoint"}'>+ Edge pt</button>
+      <button data-cmd='{"type":"deletePoint"}'>− Edge pt</button>
+    </div>
+    <div class="row">
+      <button data-cmd='{"type":"feather","d":-0.5}'>Feather −</button>
+      <button data-cmd='{"type":"feather","d":0.5}'>Feather +</button>
+    </div>
+    <div class="row">
+      <button data-cmd='{"type":"inset","d":-0.5}'>Inset −</button>
+      <button data-cmd='{"type":"inset","d":0.5}'>Inset +</button>
+    </div>
+    <div class="row"><button id="save" data-cmd='{"type":"save"}'>Save</button></div>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    let state = {}, step = 1;
+
+    const send = (cmd) => fetch('/api/cmd', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) });
+
+    document.body.addEventListener('click', (e) => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      if (b.dataset.cmd) send(JSON.parse(b.dataset.cmd));
+      if (b.dataset.scene) send({ type: 'scene', name: b.dataset.scene });
+      if (b.dataset.nudge) { const [x, y] = b.dataset.nudge.split(',').map(Number); send({ type: 'nudge', dx: x * step, dy: y * step }); }
+      if (b.dataset.step) {
+        step = Number(b.dataset.step);
+        document.querySelectorAll('[data-step]').forEach((s) => s.classList.toggle('on', s === b));
+      }
+    });
+
+    for (const id of ['brightness', 'flatten']) {
+      let t = 0;
+      $(id).addEventListener('input', (e) => {
+        $(id + 'V').textContent = Number(e.target.value).toFixed(2);
+        clearTimeout(t);
+        t = setTimeout(() => send({ type: id, v: Number(e.target.value) }), 40);
+      });
+    }
+
+    function render() {
+      const s = state;
+      $('status').innerHTML = s.scene ? `showing <b>${s.scene}</b>${s.calibrating ? ' · calibrating' : ''}` : 'waiting for projector page…';
+      $('scenes').innerHTML = (s.scenes || []).map((n) => `<button data-scene="${n}" class="${n === s.scene ? 'on' : ''}">${n}</button>`).join('');
+      $('blackout').classList.toggle('warn', !!s.blackout);
+      $('calToggle').classList.toggle('on', !!s.calibrating);
+      $('calToggle').textContent = s.calibrating ? 'Done' : 'Calibrate';
+      $('pattern').textContent = 'Pattern: ' + (s.pattern || '–');
+      $('calib').classList.toggle('show', !!s.calibrating);
+      $('sel').textContent = s.handles ? `${s.selected + 1} / ${s.handles}` : '–';
+      $('save').classList.toggle('warn', !!s.dirty);
+      $('save').textContent = s.dirty ? 'Save (unsaved changes)' : 'Saved';
+      for (const id of ['brightness', 'flatten']) {
+        if (document.activeElement !== $(id) && s[id] != null) {
+          $(id).value = s[id];
+          $(id + 'V').textContent = Number(s[id]).toFixed(2);
+        }
+      }
+    }
+
+    const es = new EventSource('/api/events');
+    es.addEventListener('state', (e) => { state = JSON.parse(e.data); render(); });
+    es.onerror = () => { $('status').textContent = 'reconnecting…'; };
+    render();
+  </script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+# systemd *user* service for the stairwall server.
+# Install:  mkdir -p ~/.config/systemd/user && cp deploy/stairwall.service ~/.config/systemd/user/
+#           systemctl --user enable --now stairwall
+#           sudo loginctl enable-linger $USER     # start at boot without logging in
+[Unit]
+Description=stairwall projection server
+After=network.target
+
+[Service]
+WorkingDirectory=%h/stairwall
+ExecStart=/usr/bin/env node server/index.js
+Environment=PORT=8080
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=default.target
