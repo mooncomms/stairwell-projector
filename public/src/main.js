@@ -249,6 +249,7 @@ new p5((p) => {
           scenes: SCENES.map((s) => s.name), scene: scenes.name, blackout,
           calibrating: calib.active, pattern: calib.pattern, dirty: calib.dirty,
           selected: calib.selected, handles: calib.handles().length,
+          handleName: ((h) => (h ? (h.corner >= 0 ? `${['TL', 'TR', 'BR', 'BL'][h.corner]} corner` : `edge point`) : ''))(calib.handles()[calib.selected]),
           brightness: c.brightness, flatten: c.flatten, feather: c.feather, inset: c.inset, gain: c.gain ?? [1, 1, 1],
         }),
       }).catch(() => {});
