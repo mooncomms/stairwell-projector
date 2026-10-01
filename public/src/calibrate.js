@@ -56,11 +56,44 @@ export class Calibrator {
     this.onChange(this.cal);
   }
 
+  // Directions on the wall, in screen pixels: averaged from the quad's edges, so the
+  // arrows mean "toward the wall's top/right" however the projector is rotated.
+  wallAxes() {
+    const [tl, tr, br, bl] = this.cal.corners;
+    const unit = (x, y) => { const l = Math.hypot(x, y) || 1; return { x: x / l, y: y / l }; };
+    return {
+      right: unit(tr.x - tl.x + br.x - bl.x, tr.y - tl.y + br.y - bl.y),
+      down: unit(bl.x - tl.x + br.x - tr.x, bl.y - tl.y + br.y - tr.y),
+    };
+  }
+
+  // dx/dy are in wall directions (+x = right, +y = down), in pixels.
   nudge(dx, dy) {
     const h = this.handles()[this.selected];
     if (!h) return;
-    h.pt.x += dx;
-    h.pt.y += dy;
+    const { right, down } = this.wallAxes();
+    h.pt.x += dx * right.x + dy * down.x;
+    h.pt.y += dx * right.y + dy * down.y;
+    this.changed();
+  }
+
+  // Turn the image 90° clockwise inside the same outline: corners keep their screen
+  // positions, the labels move round by one. For a projector lying on its side.
+  rotate() {
+    const c = this.cal.corners, e = this.cal.edges;
+    this.cal.corners = [c[1], c[2], c[3], c[0]];
+    this.cal.edges = [e[1], e[2], e[3], e[0]];
+    this.selected = 0;
+    this.changed();
+  }
+
+  // Mirror the image left/right (rear projection, or a projector upside down).
+  flip() {
+    const [tl, tr, br, bl] = this.cal.corners, e = this.cal.edges;
+    const rev = (a) => [...a].reverse();
+    this.cal.corners = [tr, tl, bl, br];
+    this.cal.edges = [rev(e[0]), rev(e[3]), rev(e[2]), rev(e[1])];
+    this.selected = 0;
     this.changed();
   }
 

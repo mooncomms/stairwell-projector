@@ -150,6 +150,7 @@ new p5((p) => {
         'drag · Tab select · arrows nudge',
         '  (shift ×10, alt ×0.25)',
         'a add pt · del remove · p pattern',
+        'r rotate 90° · f flip',
         '[ ] feather · - = inset',
         ', . flatten · ; \' brightness',
         's save · c exit',
@@ -199,6 +200,8 @@ new p5((p) => {
       case 'feather': calib.set('feather', Math.max(0, +(c.feather + cmd.d).toFixed(2))); break;
       case 'inset': calib.set('inset', +(c.inset + cmd.d).toFixed(2)); break;
       case 'save': calib.save(); break;
+      case 'rotate': calib.rotate(); break;
+      case 'flip': calib.flip(); break;
       case 'reset': calib.cal = Object.assign(calib.cal, defaultCalibration(p.width, p.height)); calib.selected = 0; calib.changed(); break;
       case 'reload': location.reload(); break;
     }
@@ -216,6 +219,7 @@ new p5((p) => {
         Delete: { type: 'deletePoint' }, Backspace: { type: 'deletePoint' }, s: { type: 'save' },
         '[': { type: 'feather', d: -0.5 }, ']': { type: 'feather', d: 0.5 },
         '-': { type: 'inset', d: -0.5 }, '=': { type: 'inset', d: 0.5 },
+        r: { type: 'rotate' }, f: { type: 'flip' },
       }[k];
       if (m) { run(m); e.preventDefault(); return; }
     }

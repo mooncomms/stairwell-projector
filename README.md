@@ -12,7 +12,7 @@ URL flags: `?scene=boids` · `?calibrate` · `?hud` · `?still` (freeze motion, 
 ## Calibrating on the wall
 1. Mount the projector **rotated 90°** (portrait). Turn the projector's own keystone **off**.
 2. Press `c`, or tap **Calibrate** on the phone remote. The grid test card appears.
-3. Move the 4 corners (TL/TR/BR/BL) onto the wall's real corners. You can drag with a mouse, or use `Tab` plus the arrow keys (`shift` ×10, `alt` ×0.25 px). The phone remote's d-pad does the same.
+3. If the projector lies on its side, press **Rotate 90°** (`r`) until the test card's TOP points up the wall (**Flip**, `f`, mirrors it). Then move the 4 corners (TL/TR/BR/BL) onto the wall's real corners. Arrows always move points in the wall's directions, however the projector is turned. You can drag with a mouse, or use `Tab` plus the arrow keys (`shift` ×10, `alt` ×0.25 px). The phone remote's d-pad does the same.
 4. Check the grid lines look square and the 1 m circle looks round. If an edge of the wall isn't straight, select a point and press `a` to add an edge point there, then move it to follow the edge. Edge points only bend the mask.
 5. Press `p` to cycle patterns:
    - `levels`: dark and bright grey steps. Set the projector's **Brightness** (really its black level) as low as possible while step 2 or 4 is still visible, then raise **Contrast** until the top steps start merging with white, and back off one step.
