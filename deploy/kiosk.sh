@@ -17,4 +17,10 @@ exec "$BROWSER" \
   --disable-session-crashed-bubble --disable-features=Translate \
   --overscroll-history-navigation=0 \
   --autoplay-policy=no-user-gesture-required \
-  --ignore-gpu-blocklist --enable-gpu-rasterization
+  --ignore-gpu-blocklist --enable-gpu-rasterization \
+  --password-store=basic \
+  --check-for-update-interval=31536000 \
+  --simulate-outdated-no-au='Tue, 31 Dec 2099 23:59:59 GMT'
+# --password-store=basic: with auto-login the GNOME keyring stays locked; don't ask for it.
+# The update flags stop "Chrome is out of date" prompts on the wall (apt still updates it).
+# To leave kiosk mode: Alt+F4.
