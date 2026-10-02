@@ -17,6 +17,8 @@ One wall is active at a time. Switch walls from the phone remote's **Wall** butt
 - `flicker`: `[{ "x", "y", "w", "h" }]` in cm. A region (for example a neon sign) that stutters now and then.
 - `lamps`: `[{ "x", "y", "r" }]` in cm. Warm glows that switch on after real sunset (`?night` forces them on).
 
+- `moonsky`: `{ "moon": { "x", "y", "r" }, "until", "brightness", "speed" }` in cm. Soft clouds drift over the print's own sky (only where the reference image is light grey, and above `until`), lit by a dim full moon that the clouds veil as they pass. Used by both `traffic` and `glow`.
+
 Tune the speeds, spacing and brightness in `TRAFFIC` at the top of `public/src/scenes/traffic.js`.
 
 **Camden** (`walls/camden`) is the middle column of a 12-panel Camden Lock print: four panes, 77 cm wide. Its reference image was made by matching a photo of the print on the wall against the full store image, and it lives on the box at `walls/camden/media/reference.jpg`.

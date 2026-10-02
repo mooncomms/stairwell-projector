@@ -6,9 +6,11 @@
 //   "trails":  [{ "color": "red" | "yellow", "pts": [[x, y], …] }]   cm, drawn left → right
 //   "flicker": [{ "x", "y", "w", "h" }]                               cm, e.g. a neon sign
 //   "lamps":   [{ "x", "y", "r" }]                                    cm
+//   "moonsky": clouds and a full moon over the print's sky (see moonsky.js)
 // URL flag ?night forces the lamps on (for testing in daylight).
 import { buildLights } from './glow.js';
 import { sunPosition } from './sky.js';
+import { makeMoonSky } from './moonsky.js';
 
 const TRAFFIC = {
   base: 0.4,               // the artwork's lights between cars (0–1)
@@ -30,12 +32,15 @@ export default {
   create(p, g, { W, H, wall, config }) {
     const ctx = g.drawingContext;
     const kx = W / (wall.widthM * 100), ky = H / (wall.heightM * 100), kr = (kx + ky) / 2;
-    let lights = null, bloom = null, failed = false;
+    let lights = null, bloom = null, moonsky = null, failed = false;
     const layer = (() => { const s = p.createGraphics(W, H); s.pixelDensity(1); return s; })();
     const glowLayer = (() => { const s = p.createGraphics(W, H); s.pixelDensity(1); return s; })();
 
     if (!config.reference) failed = true;
-    else p.loadImage('/media/' + encodeURIComponent(config.reference), (img) => ({ lights, bloom } = buildLights(p, img, W, H)), () => { failed = true; });
+    else p.loadImage('/media/' + encodeURIComponent(config.reference), (img) => {
+      ({ lights, bloom } = buildLights(p, img, W, H));
+      if (config.moonsky) moonsky = makeMoonSky(p, img, W, H, kx, ky, config.moonsky);
+    }, () => { failed = true; });
 
     // Trails as polylines in px, with cumulative length; yellow runs the other way.
     const trails = (config.trails || []).map((t) => {
@@ -132,7 +137,10 @@ export default {
         ctx.drawImage(glowLayer.elt, 0, 0);
         ctx.filter = 'none';
 
-        // 4. Street lamps: warm glow after sunset (fades in over twilight).
+        // 4. Moonlit clouds drifting over the print's sky.
+        moonsky?.draw(ctx, t);
+
+        // 5. Street lamps: warm glow after sunset (fades in over twilight).
         if (lamps.length) {
           const alt = sunPosition(Date.now(), sky.lat, sky.lon).alt;
           const target = NIGHT ? 1 : Math.max(0, Math.min(1, (2 - alt) / 6));
@@ -149,7 +157,7 @@ export default {
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1;
       },
-      dispose() { lights?.remove(); bloom?.remove(); layer.remove(); glowLayer.remove(); },
+      dispose() { lights?.remove(); bloom?.remove(); moonsky?.dispose(); layer.remove(); glowLayer.remove(); },
     };
   },
 };

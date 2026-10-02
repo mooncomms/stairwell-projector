@@ -1,3 +1,4 @@
+import { makeMoonSky } from './moonsky.js';
 // Glow: makes a printed artwork's own lights shine. From the wall's reference image
 // (config "reference" in media/, in wall space) it keeps only the strongly coloured,
 // bright parts — light trails, signs, lamps — at full brightness in their own colour,
@@ -40,9 +41,9 @@ export function buildLights(p, img, W, H, opts = GLOW) {
 
 export default {
   name: 'glow',
-  create(p, g, { W, H, config }) {
+  create(p, g, { W, H, wall, config }) {
     const ctx = g.drawingContext;
-    let lights = null, bloom = null, flow = null, scratch = null, failed = false;
+    let lights = null, bloom = null, flow = null, scratch = null, moonsky = null, failed = false;
 
     const file = config.reference;
     if (!file) failed = true;
@@ -51,6 +52,7 @@ export default {
     function build(img) {
       // 1–2. Light map and its bloom.
       ({ lights, bloom } = buildLights(p, img, W, H));
+      if (config.moonsky) moonsky = makeMoonSky(p, img, W, H, W / (wall.widthM * 100), H / (wall.heightM * 100), config.moonsky);
       // 3. Flow texture: soft horizontal streaks, tiled sideways as it scrolls.
       flow = p.createGraphics(W, H); flow.pixelDensity(1);
       const fc = flow.drawingContext;
@@ -105,8 +107,9 @@ export default {
         ctx.drawImage(bloom.elt, 0, 0);
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = 'source-over';
+        moonsky?.draw(ctx, t);
       },
-      dispose() { lights?.remove(); bloom?.remove(); flow?.remove(); scratch?.remove(); },
+      dispose() { lights?.remove(); bloom?.remove(); flow?.remove(); scratch?.remove(); moonsky?.dispose(); },
     };
 
   },
