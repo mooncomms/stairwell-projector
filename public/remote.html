@@ -107,6 +107,11 @@
       <button data-cmd='{"type":"inset","d":-0.5}'>Inset −</button>
       <button data-cmd='{"type":"inset","d":0.5}'>Inset +</button>
     </div>
+    <div class="row" id="gapsRow">
+      <button data-cmd='{"type":"gaps","d":-0.25}'>Gaps −</button>
+      <button id="gapsV" disabled>gaps</button>
+      <button data-cmd='{"type":"gaps","d":0.25}'>Gaps +</button>
+    </div>
     <div class="row"><button id="save" data-cmd='{"type":"save"}'>Save</button></div>
   </div>
   </section>
@@ -201,6 +206,8 @@
       $('sel').textContent = s.handleName || (s.handles ? `${s.selected + 1} / ${s.handles}` : '–');
       $('save').classList.toggle('warn', !!s.dirty);
       $('save').textContent = s.dirty ? 'Save (unsaved changes)' : 'Saved';
+      $('gapsRow').style.display = s.panels ? '' : 'none';
+      $('gapsV').textContent = `gaps ${s.gapGrow >= 0 ? '+' : ''}${s.gapGrow ?? 0} cm`;
       (s.gain || [1, 1, 1]).forEach((v, c) => {
         if (document.activeElement !== $('gain' + c)) { $('gain' + c).value = v; $('gain' + c + 'V').textContent = Number(v).toFixed(2); }
       });

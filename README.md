@@ -9,7 +9,7 @@ Each wall has a folder in `walls/`:
 
 One wall is active at a time. Switch walls from the phone remote's **Wall** buttons; each wall keeps its own calibration, so you can move the projector between rooms. To start a box on a particular wall, set `STAIRWALL_WALL=camden`.
 
-- **`panels`**: for a split print. List each panel as `{ "x", "y", "w", "h" }` in cm from the wall's top-left corner. Light outside the panels is blacked out, both in the gaps between them and on the wall around them. A scene can opt out with `outside: true` to deliberately draw around the panels.
+- **`panels`**: for a split print. List each panel as `{ "x", "y", "w", "h" }` in cm from the wall's top-left corner. Light outside the panels is blacked out, both in the gaps between them and on the wall around them. A scene can opt out with `outside: true` to deliberately draw around the panels. To widen or narrow every gap between panels at once, use **Gaps − / +** on the phone remote while calibrating (or `g` / `G`), in 0.25 cm steps. This is saved with the wall's calibration.
 - **`reference`**: an image of the artwork, in `media/`, straightened to exactly the wall's shape. The `reference` calibration pattern projects it, so you line up the projected copy with the real print. The `glow` scene uses it to light up the artwork's own lights.
 
 **Traffic** (`traffic` scene) brings a print's light trails to life, driven by the wall's config:
