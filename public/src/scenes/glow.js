@@ -16,6 +16,28 @@ const GLOW = {
 
 const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
+// Shared with other scenes (traffic): the artwork's lights as a layer, plus its bloom.
+// Keeps bright, saturated pixels, pushed to full brightness in their own colour.
+export function buildLights(p, img, W, H, opts = GLOW) {
+  const lights = p.createGraphics(W, H); lights.pixelDensity(1);
+  lights.image(img, 0, 0, W, H);
+  lights.loadPixels();
+  const px = lights.pixels;
+  for (let i = 0; i < px.length; i += 4) {
+    const r = px[i], gg = px[i + 1], b = px[i + 2];
+    const mx = Math.max(r, gg, b), mn = Math.min(r, gg, b);
+    const sat = mx ? (mx - mn) / mx : 0, val = mx / 255;
+    const w = smooth(...opts.minSat, sat) * smooth(...opts.minVal, val);
+    const k = mx ? (255 / mx) * w : 0;
+    px[i] = r * k; px[i + 1] = gg * k; px[i + 2] = b * k; px[i + 3] = 255;
+  }
+  lights.updatePixels();
+  const bloom = p.createGraphics(W, H); bloom.pixelDensity(1);
+  bloom.drawingContext.filter = `blur(${opts.blur}px)`;
+  bloom.drawingContext.drawImage(lights.elt, 0, 0);
+  return { lights, bloom };
+}
+
 export default {
   name: 'glow',
   create(p, g, { W, H, config }) {
@@ -27,24 +49,8 @@ export default {
     else p.loadImage('/media/' + encodeURIComponent(file), build, () => { failed = true; });
 
     function build(img) {
-      // 1. Light map: keep bright, saturated pixels, pushed to full brightness.
-      lights = p.createGraphics(W, H); lights.pixelDensity(1);
-      lights.image(img, 0, 0, W, H);
-      lights.loadPixels();
-      const px = lights.pixels;
-      for (let i = 0; i < px.length; i += 4) {
-        const r = px[i], gg = px[i + 1], b = px[i + 2];
-        const mx = Math.max(r, gg, b), mn = Math.min(r, gg, b);
-        const sat = mx ? (mx - mn) / mx : 0, val = mx / 255;
-        const w = smooth(...GLOW.minSat, sat) * smooth(...GLOW.minVal, val);
-        const k = mx ? (255 / mx) * w : 0;
-        px[i] = r * k; px[i + 1] = gg * k; px[i + 2] = b * k; px[i + 3] = 255;
-      }
-      lights.updatePixels();
-      // 2. Bloom: a blurred copy, added on top later.
-      bloom = p.createGraphics(W, H); bloom.pixelDensity(1);
-      bloom.drawingContext.filter = `blur(${GLOW.blur}px)`;
-      bloom.drawingContext.drawImage(lights.elt, 0, 0);
+      // 1–2. Light map and its bloom.
+      ({ lights, bloom } = buildLights(p, img, W, H));
       // 3. Flow texture: soft horizontal streaks, tiled sideways as it scrolls.
       flow = p.createGraphics(W, H); flow.pixelDensity(1);
       const fc = flow.drawingContext;

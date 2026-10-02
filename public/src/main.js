@@ -18,8 +18,9 @@ import aurora from './scenes/aurora.js';
 import sky from './scenes/sky.js';
 import lavalamp from './scenes/lavalamp.js';
 import glow from './scenes/glow.js';
+import traffic from './scenes/traffic.js';
 
-const SCENES = [starfield, nebula, boids, trippy, nature, icarus, painting, underwater, destroyer, jellyfish, rain, aurora, sky, lavalamp, glow, testcard];
+const SCENES = [starfield, nebula, boids, trippy, nature, icarus, painting, underwater, destroyer, jellyfish, rain, aurora, sky, lavalamp, glow, traffic, testcard];
 
 const [config, savedCal] = await Promise.all([
   fetch('/api/config').then((r) => r.json()),

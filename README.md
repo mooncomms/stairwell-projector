@@ -12,6 +12,13 @@ One wall is active at a time. Switch walls from the phone remote's **Wall** butt
 - **`panels`**: for a split print. List each panel as `{ "x", "y", "w", "h" }` in cm from the wall's top-left corner. Light outside the panels is blacked out, both in the gaps between them and on the wall around them. A scene can opt out with `outside: true` to deliberately draw around the panels.
 - **`reference`**: an image of the artwork, in `media/`, straightened to exactly the wall's shape. The `reference` calibration pattern projects it, so you line up the projected copy with the real print. The `glow` scene uses it to light up the artwork's own lights.
 
+**Traffic** (`traffic` scene) brings a print's light trails to life, driven by the wall's config:
+- `trails`: `[{ "color": "red" | "yellow", "pts": [[x, y], …] }]` in cm, traced along the printed streaks. Red pulses run along them, yellow ones run back.
+- `flicker`: `[{ "x", "y", "w", "h" }]` in cm. A region (for example a neon sign) that stutters now and then.
+- `lamps`: `[{ "x", "y", "r" }]` in cm. Warm glows that switch on after real sunset (`?night` forces them on).
+
+Tune the speeds, spacing and brightness in `TRAFFIC` at the top of `public/src/scenes/traffic.js`.
+
 **Camden** (`walls/camden`) is the middle column of a 12-panel Camden Lock print: four panes, 77 cm wide. Its reference image was made by matching a photo of the print on the wall against the full store image, and it lives on the box at `walls/camden/media/reference.jpg`.
 
 ```
