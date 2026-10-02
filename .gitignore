@@ -7,3 +7,5 @@ walls/*/calibration*.json
 walls/*/*.tmp
 walls/*/media/*
 !walls/*/media/.gitkeep
+# Reference images belong to the wall definition, so they are in git.
+!walls/*/media/reference.*
