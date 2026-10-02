@@ -2,7 +2,7 @@
 import { Output } from './output.js';
 import { Calibrator, defaultCalibration } from './calibrate.js';
 import { SceneManager } from './scenes.js';
-import testcard, { fill, levels } from './scenes/testcard.js';
+import testcard, { fill, levels, reference } from './scenes/testcard.js';
 import starfield from './scenes/starfield.js';
 import nebula from './scenes/nebula.js';
 import boids from './scenes/boids.js';
@@ -17,8 +17,9 @@ import rain from './scenes/rain.js';
 import aurora from './scenes/aurora.js';
 import sky from './scenes/sky.js';
 import lavalamp from './scenes/lavalamp.js';
+import glow from './scenes/glow.js';
 
-const SCENES = [starfield, nebula, boids, trippy, nature, icarus, painting, underwater, destroyer, jellyfish, rain, aurora, sky, lavalamp, testcard];
+const SCENES = [starfield, nebula, boids, trippy, nature, icarus, painting, underwater, destroyer, jellyfish, rain, aurora, sky, lavalamp, glow, testcard];
 
 const [config, savedCal] = await Promise.all([
   fetch('/api/config').then((r) => r.json()),
@@ -27,7 +28,11 @@ const [config, savedCal] = await Promise.all([
 const wall = config.wall || { widthM: 1.2, heightM: 2.4 };
 const H = config.contentHeight || 1600;
 const W = Math.round((H * wall.widthM) / wall.heightM);
-const ctx = { W, H, wall, config, pxPerM: H / wall.heightM };
+// Physical panels (e.g. a split canvas print), in cm from the wall's top-left corner.
+// Scenes get them in pixels; the output masks everything outside them.
+const cmW = wall.widthM * 100, cmH = wall.heightM * 100;
+const panels = (config.panels || []).map(({ x, y, w, h }) => ({ x: (x / cmW) * W, y: (y / cmH) * H, w: (w / cmW) * W, h: (h / cmH) * H }));
+const ctx = { W, H, wall, config, panels, pxPerM: H / wall.heightM };
 
 const overlay = document.getElementById('overlay');
 const octx = overlay.getContext('2d');
@@ -43,12 +48,13 @@ new p5((p) => {
     resizeOverlay();
 
     out = new Output(p);
-    const cal = savedCal || defaultCalibration(p.width, p.height);
+    const cal = savedCal || defaultCalibration(p.width, p.height, wall.widthM / wall.heightM);
     calib = new Calibrator(cal, (c) => { out.setCalibration(c); reportState(); });
     out.setCalibration(cal);
+    out.setPanels(panels.map((q) => ({ x0: q.x / W, y0: q.y / H, x1: (q.x + q.w) / W, y1: (q.y + q.h) / H })));
 
     scenes = new SceneManager(p, SCENES, ctx);
-    scenes.go(params.get('scene') || scenes.playlist[0] || 'starfield', 0);
+    scenes.go(params.get('scene') || scenes.playlist[0] || SCENES[0].name, 0);
     if (params.has('calibrate')) setCalibrating(true);
     connectRemote();
     reportState();
@@ -75,7 +81,7 @@ new p5((p) => {
     if (patternName === name) return;
     if (patternScene) { patternScene.inst.dispose?.(); patternScene.g.remove(); patternScene = null; }
     patternName = name;
-    const def = { grid: testcard, edges: fill(190), levels, white: fill(255), gray: fill(128) }[name];
+    const def = { grid: testcard, reference, edges: fill(190), levels, white: fill(255), gray: fill(128) }[name];
     if (def) {
       const g = p.createGraphics(W, H);
       g.pixelDensity(1);
@@ -123,6 +129,7 @@ new p5((p) => {
         flatten: cal.flatten ?? 0,
         maskOn: !(calib.active && calib.pattern === 'frame'),
         gain: cal.gain ?? [1, 1, 1],
+        panels: !(scenes.current?.def.outside),        // scenes may draw around the panels
       });
     }
     drawOverlay();
@@ -138,7 +145,7 @@ new p5((p) => {
     if (!visible) return;
     if (calib.active) calib.drawOverlay(octx);
     const lines = [
-      `${Math.round(fps)} fps · scene: ${scenes.name}${blackout ? ' · BLACKOUT' : ''}`,
+      `${Math.round(fps)} fps · ${config.wallName || 'wall'} · scene: ${scenes.name}${blackout ? ' · BLACKOUT' : ''}`,
     ];
     if (calib.active) {
       const c = calib.cal;
@@ -202,7 +209,7 @@ new p5((p) => {
       case 'save': calib.save(); break;
       case 'rotate': calib.rotate(); break;
       case 'flip': calib.flip(); break;
-      case 'reset': calib.cal = Object.assign(calib.cal, defaultCalibration(p.width, p.height)); calib.selected = 0; calib.changed(); break;
+      case 'reset': calib.cal = Object.assign(calib.cal, defaultCalibration(p.width, p.height, wall.widthM / wall.heightM)); calib.selected = 0; calib.changed(); break;
       case 'reload': location.reload(); break;
     }
     reportState();
@@ -251,7 +258,7 @@ new p5((p) => {
       fetch('/api/state', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          scenes: SCENES.map((s) => s.name), scene: scenes.name, blackout,
+          wall: config.wallName, scenes: (scenes.playlist.length ? scenes.playlist : SCENES.map((s) => s.name)), scene: scenes.name, blackout,
           calibrating: calib.active, pattern: calib.pattern, dirty: calib.dirty,
           selected: calib.selected, handles: calib.handles().length,
           handleName: ((h) => (h ? (h.corner >= 0 ? `${['TL', 'TR', 'BR', 'BL'][h.corner]} corner` : `edge point`) : ''))(calib.handles()[calib.selected]),

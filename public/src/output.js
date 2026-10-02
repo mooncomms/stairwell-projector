@@ -5,6 +5,7 @@
 import { squareToQuad, invert3, toColumnMajor, minCornerW, isConvexQuad } from './warp.js';
 
 const MAX_PTS = 48;
+const MAX_PANELS = 16;
 
 const VERT = `
 precision highp float;
@@ -18,6 +19,7 @@ void main() {
 const FRAG = `
 precision highp float;
 #define MAX_PTS ${MAX_PTS}
+#define MAX_PANELS ${MAX_PANELS}
 uniform vec2 uRes;          // canvas size in CSS px
 uniform float uDensity;     // device px per CSS px
 uniform mat3 uHinv;         // output px → wall uv
@@ -35,6 +37,21 @@ uniform float uBright;
 uniform vec3 uGain;           // colour balance, applied to everything shown
 uniform float uFlat;
 uniform float uWmin;
+uniform vec4 uPanels[MAX_PANELS]; // physical panels in wall uv: x0, y0, x1, y1
+uniform int uPanelN;              // 0 = the whole wall is one surface
+
+// 1 inside any panel, 0 in the gaps between them (and around them).
+float panelMask(vec2 uv) {
+  if (uPanelN == 0) return 1.0;
+  float m = 0.0;
+  for (int i = 0; i < MAX_PANELS; i++) {
+    if (i >= uPanelN) break;
+    vec4 r = uPanels[i];
+    vec2 d = min(uv - r.xy, r.zw - uv);          // > 0 inside on both axes
+    m = max(m, smoothstep(0.0, 0.0015, min(d.x, d.y)));
+  }
+  return m;
+}
 
 // Signed distance to the polygon (negative inside). After Inigo Quilez.
 float sdPoly(vec2 p) {
@@ -77,10 +94,12 @@ void main() {
     float stripe = step(0.5, fract((px.x + px.y) / 28.0));
     vec3 outside = vec3(0.95, 0.06, 0.04) * stripe;
     vec3 inner = texture2D(uTexA, clamp(uv, 0.0, 1.0)).rgb;
-    gl_FragColor = vec4((sd < 0.0 && uValid > 0.5 ? inner : outside) * uBright * uGain, 1.0);
+    bool onWall = sd < 0.0 && uValid > 0.5 && panelMask(uv) > 0.5;
+    gl_FragColor = vec4((onWall ? inner : outside) * uBright * uGain, 1.0);
     return;
   }
   float inside = uFeather > 0.0 ? 1.0 - smoothstep(-uFeather * 0.5, uFeather * 0.5, sd) : step(sd, 0.0);
+  inside *= panelMask(uv);
   vec3 col = vec3(0.0);
   if (inside > 0.0 && uValid > 0.5) {
     vec2 st = clamp(uv, 0.0, 1.0);
@@ -109,6 +128,14 @@ export class Output {
     this.valid = false;
   }
 
+  // Panels in wall coordinates (fractions of the wall, 0..1). Empty = no panel mask.
+  setPanels(rects = []) {
+    const flat = new Array(MAX_PANELS * 4).fill(0);
+    rects.slice(0, MAX_PANELS).forEach((r, i) => flat.splice(i * 4, 4, r.x0, r.y0, r.x1, r.y1));
+    this.panels = flat;
+    this.panelN = Math.min(MAX_PANELS, rects.length);
+  }
+
   setCalibration(cal) {
     this.cal = cal;
     const H = squareToQuad(cal.corners);
@@ -126,7 +153,7 @@ export class Output {
   }
 
   // texA/texB: p5.Graphics in wall space. mix: 0 → A, 1 → B.
-  render(texA, texB, mix, { brightness = 1, flatten = 0, maskOn = true, edgeCheck = false, gain = [1, 1, 1] } = {}) {
+  render(texA, texB, mix, { brightness = 1, flatten = 0, maskOn = true, edgeCheck = false, gain = [1, 1, 1], panels = true } = {}) {
     const p = this.p, s = this.shader, cal = this.cal;
     p.shader(s);
     s.setUniform('uRes', [p.width, p.height]);
@@ -146,6 +173,8 @@ export class Output {
     s.setUniform('uGain', gain);
     s.setUniform('uFlat', flatten);
     s.setUniform('uWmin', this.wmin);
+    s.setUniform('uPanels', this.panels ?? new Array(MAX_PANELS * 4).fill(0));
+    s.setUniform('uPanelN', panels ? this.panelN ?? 0 : 0);
     p.noStroke();
     p.rect(0, 0, p.width, p.height);
   }

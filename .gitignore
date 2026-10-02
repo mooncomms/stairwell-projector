@@ -1,7 +1,9 @@
 node_modules/
-# Device-specific calibration lives on the projector box.
-data/calibration*.json
-data/*.tmp
-# Your media library.
-media/*
-!media/.gitkeep
+# Runtime state (which wall is active), and the old single-wall layout.
+/data/
+/media/
+# Per wall: calibration and media live on the box, not in git.
+walls/*/calibration*.json
+walls/*/*.tmp
+walls/*/media/*
+!walls/*/media/.gitkeep

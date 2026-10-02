@@ -37,6 +37,11 @@
 <body>
   <div class="status" id="status">connecting…</div>
 
+  <section id="secWall" class="hide-cal">
+  <h2>Wall</h2>
+  <div class="grid" id="walls"></div>
+  </section>
+
   <section id="secScene" class="hide-cal">
   <h2>Scene</h2>
   <div class="grid" id="scenes"></div>
@@ -124,6 +129,10 @@
         }
       }
       if (b.dataset.scene) send({ type: 'scene', name: b.dataset.scene });
+      if (b.dataset.wall && b.dataset.wall !== state.wall) {
+        fetch('/api/wall', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: b.dataset.wall }) });
+        $('status').textContent = 'switching to ' + b.dataset.wall + '…';
+      }
       if (b.dataset.step) {
         step = Number(b.dataset.step);
         document.querySelectorAll('[data-step]').forEach((s) => s.classList.toggle('on', s === b));
@@ -164,8 +173,21 @@
       });
     });
 
+    // Walls: fetched once, and again whenever the projector reports a different wall.
+    let walls = [], wallsFor = null;
+    async function loadWalls() {
+      try { walls = (await (await fetch('/api/walls')).json()).walls; } catch { walls = []; }
+      wallsFor = state.wall;
+      renderWalls();
+    }
+    function renderWalls() {
+      $('walls').innerHTML = walls.map((w) => `<button data-wall="${w.name}" class="${w.name === state.wall ? 'on' : ''}">${w.title}</button>`).join('');
+      $('secWall').style.display = walls.length > 1 ? '' : 'none';
+    }
+
     function render() {
       const s = state;
+      if (s.wall !== wallsFor) loadWalls(); else renderWalls();
       $('status').innerHTML = s.scene ? `showing <b>${s.scene}</b>${s.calibrating ? ' · calibrating' : ''}` : 'waiting for projector page…';
       $('scenes').innerHTML = (s.scenes || []).map((n) => `<button data-scene="${n}" class="${n === s.scene ? 'on' : ''}">${n}</button>`).join('');
       $('blackout').classList.toggle('warn', !!s.blackout);

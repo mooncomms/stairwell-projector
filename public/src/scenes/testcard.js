@@ -82,3 +82,18 @@ export const levels = {
     return { draw() {} };
   },
 };
+
+// Reference: the wall's own artwork (config "reference", in media/), drawn in wall
+// space, for lining projection up with a print: when the projected copy sits exactly on
+// the real one, the calibration is right. Falls back to the grid if there's none.
+export const reference = {
+  name: 'reference',
+  create(p, g, ctx) {
+    const file = ctx.config.reference;
+    let fallback = null;
+    if (!file) fallback = testcard.create(p, g, ctx);
+    else p.loadImage('/media/' + encodeURIComponent(file), (img) => g.image(img, 0, 0, ctx.W, ctx.H), () => { fallback = testcard.create(p, g, ctx); });
+    g.background(0);
+    return { draw() {}, dispose() { fallback?.dispose?.(); } };
+  },
+};

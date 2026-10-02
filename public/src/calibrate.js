@@ -4,11 +4,14 @@
 
 // edges: grey inside the mask, red stripes outside it — line the colour change up with
 // the real corners, checking from where people actually look.
-export const PATTERNS = ['grid', 'edges', 'levels', 'white', 'gray', 'content', 'frame'];
+export const PATTERNS = ['grid', 'reference', 'edges', 'levels', 'white', 'gray', 'content', 'frame'];
 
-export function defaultCalibration(w, h) {
-  // Centered 1:2 portrait rectangle, 85% of the screen height.
-  const ch = h * 0.85, cw = ch / 2, x0 = (w - cw) / 2, y0 = (h - ch) / 2;
+export function defaultCalibration(w, h, aspect = 0.5) {
+  // Centred rectangle with the wall's proportions (width / height), 85% of the screen
+  // height (or narrower if a wide wall wouldn't fit).
+  let ch = h * 0.85, cw = ch * aspect;
+  if (cw > w * 0.9) { cw = w * 0.9; ch = cw / aspect; }
+  const x0 = (w - cw) / 2, y0 = (h - ch) / 2;
   return {
     corners: [{ x: x0, y: y0 }, { x: x0 + cw, y: y0 }, { x: x0 + cw, y: y0 + ch }, { x: x0, y: y0 + ch }],
     edges: [[], [], [], []],

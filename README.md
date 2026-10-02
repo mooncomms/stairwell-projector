@@ -1,6 +1,18 @@
 # stairwall
 
-A projector turns the 1.2 × 2.4 m stairwell wall into a "window". Scenes are p5.js sketches that draw in wall space (a 1:2 buffer). A shader warps them onto the projector frame with a 4-corner homography and masks everything outside the wall to black.
+A projection engine for walls around the house. The first wall was the 1.2 × 2.4 m stairwell, turned into a "window". Scenes are p5.js sketches that draw in wall space. A shader warps them onto the projector frame with a 4-corner homography and masks everything outside the wall (or outside its panels) to black.
+
+## Walls
+Each wall has a folder in `walls/`:
+- `config.json` (in git): its size, playlist and settings, plus optional `panels` and `reference`.
+- `calibration.json` and `media/` (local to the box, not in git).
+
+One wall is active at a time. Switch walls from the phone remote's **Wall** buttons; each wall keeps its own calibration, so you can move the projector between rooms. To start a box on a particular wall, set `STAIRWALL_WALL=camden`.
+
+- **`panels`**: for a split print. List each panel as `{ "x", "y", "w", "h" }` in cm from the wall's top-left corner. Light outside the panels is blacked out, both in the gaps between them and on the wall around them. A scene can opt out with `outside: true` to deliberately draw around the panels.
+- **`reference`**: an image of the artwork, in `media/`, straightened to exactly the wall's shape. The `reference` calibration pattern projects it, so you line up the projected copy with the real print. The `glow` scene uses it to light up the artwork's own lights.
+
+**Camden** (`walls/camden`) is the middle column of a 12-panel Camden Lock print: four panes, 77 cm wide. Its reference image was made by matching a photo of the print on the wall against the full store image, and it lives on the box at `walls/camden/media/reference.jpg`.
 
 ```
 npm start            # http://localhost:8080   (remote: http://<box-ip>:8080/remote)
@@ -22,12 +34,12 @@ URL flags: `?scene=boids` · `?calibrate` · `?hud` · `?still` (freeze motion, 
    - `frame`: shows the whole projector frame, so you can see where the beam lands.
 6. **Colour balance:** use the phone remote's Red/Green/Blue sliders to warm up a cold (blue) projector. Lower blue first, and green a little if needed.
 7. Press `,` and `.` to set **flatten**. It evens out brightness when the projector hits the wall at a steep angle, at the cost of peak brightness.
-8. Calibration saves itself about a second after each change, and when you leave calibration (`s` also saves immediately). It's stored in `data/calibration.json` and loaded on every start.
+8. Calibration saves itself about a second after each change, and when you leave calibration (`s` also saves immediately). It's stored in the wall's `calibration.json` and loaded on every start.
 
 Other keys: `←` / `→` previous / next scene (outside calibration) · `n` next scene · `1–9` pick scene · `b` blackout · `h` HUD/fps · `;` `'` brightness.
 
 ## Writing a scene
-Create a file in `public/src/scenes/`, then add it to `SCENES` in `main.js` and to the `playlist` in `data/config.json`:
+Create a file in `public/src/scenes/`, then add it to `SCENES` in `main.js` and to the `playlist` in the wall's `config.json`:
 
 ```js
 export default {
@@ -46,10 +58,10 @@ export default {
 The top-left of `g` is the top-left corner of the wall, and `pxPerM` converts metres to pixels.
 
 ## Media
-Put photos (`jpg`/`png`/`webp`) and videos (`mp4`/`webm`) in `media/`. The `nature` scene shuffles them, crops them to fill the wall, and plays them with slow zooms and crossfades. Portrait or 4K material works best. Pexels, Pixabay and NASA's image library are good free sources.
+Put photos (`jpg`/`png`/`webp`) and videos (`mp4`/`webm`) in the wall's `media/` folder (for example `walls/stairwell/media/`). The `nature` scene shuffles them, crops them to fill the wall, and plays them with slow zooms and crossfades. Portrait or 4K material works best. Pexels, Pixabay and NASA's image library are good free sources.
 
 ## Paintings
-Put images in `media/paintings/`. The `painting` scene fits each one to the wall's width, sits it on the bottom edge, and grows the missing sky from the painting's own top edge. Tweak the look in `SKY` at the top of `public/src/scenes/painting.js`. The scene cycles through the paintings every `paintingSeconds`.
+Put images in the wall's `media/paintings/`. The `painting` scene fits each one to the wall's width, sits it on the bottom edge, and grows the missing sky from the painting's own top edge. Tweak the look in `SKY` at the top of `public/src/scenes/painting.js`. The scene cycles through the paintings every `paintingSeconds`.
 
 **Blinking:** add a sidecar file with the same name as the image (for example `american-gothic.json`) that lists each figure's eyes. Coordinates are `[centre x, centre y, width, height]` of each eye opening, in the image's own pixels:
 
@@ -60,7 +72,7 @@ Put images in `media/paintings/`. The `painting` scene fits each one to the wall
 `every` is the random gap between blinks, in seconds. Open `?scene=painting&lids` to hold every lid shut while you check the positions.
 
 ## Live sky
-The `sky` scene shows the real sky right now: sun position, colours, clouds, stars and moon phase. Set it up in `data/config.json` under `"sky"`:
+The `sky` scene shows the real sky right now: sun position, colours, clouds, stars and moon phase. Set it up in the wall's `config.json` under `"sky"`:
 - `lat` and `lon`: your location.
 - `facing`: which way the "window" looks, in degrees (270 = west, so sunsets come into view).
 - `clouds`: cloud cover, 0–1.
@@ -77,8 +89,9 @@ Any small Linux PC that can run Chromium with GPU acceleration works. An Intel G
 2. Clone and install: `git clone https://github.com/mooncomms/stairwell-projector.git ~/stairwall && cd ~/stairwall && ./deploy/install.sh`
    There's nothing to build. This sets up the server service (starts at boot) and the kiosk browser (starts at login).
 3. In the desktop settings: enable **automatic login**, and turn off **screen blanking, screensaver and suspend**.
-4. Copy your calibration and media from the old machine:
-   `scp data/calibration.json box:~/stairwall/data/` and `scp -r media box:~/stairwall/`
+4. Copy each wall's calibration and media from the old machine, for example:
+   `scp -r walls/stairwell/media walls/stairwell/calibration.json box:~/stairwall/walls/stairwell/`
+   (A box set up before walls existed moves its `data/calibration.json` and `media/` into `walls/stairwell/` automatically on the next start.)
 5. Optionally, rename the box so it's easy to find: `sudo hostnamectl set-hostname stairwall` (then it's `stairwall.local` on the network).
 6. In the BIOS, set **"restore on AC power loss" → on**, so it comes back after a power cut.
 
@@ -96,7 +109,7 @@ Any small Linux PC that can run Chromium with GPU acceleration works. An Intel G
   3. On the phone, install any Wake-on-LAN app and give it the box's MAC address (`ip link` shows it).
 - **Waking with a remote control:** a cheap 2.4 GHz "air mouse" remote with a USB dongle acts as a keyboard. Its arrow keys change scenes, and its power button can wake the box from sleep once "USB wake" is enabled in the BIOS.
 
-**Settings** (`data/config.json`):
+**Settings** (each wall's `config.json`):
 - `playlist` and `sceneSeconds` (0 = never auto-advance)
 - `crossfadeSeconds`
 - `schedule` (`{"on":"18:00","off":"00:30"}`, fades to black outside those hours)

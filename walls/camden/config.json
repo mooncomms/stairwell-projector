@@ -1,0 +1,17 @@
+{
+  "title": "Camden",
+  "wall": { "widthM": 0.77, "heightM": 1.4 },
+  "contentHeight": 1600,
+  "panels": [
+    { "x": 0, "y": 0, "w": 77, "h": 29.3 },
+    { "x": 0, "y": 30.7, "w": 77, "h": 38.7 },
+    { "x": 0, "y": 70.7, "w": 77, "h": 39.0 },
+    { "x": 0, "y": 110.8, "w": 77, "h": 29.2 }
+  ],
+  "reference": "reference.jpg",
+  "playlist": ["glow"],
+  "sceneSeconds": 0,
+  "crossfadeSeconds": 4,
+  "brightness": 1.0,
+  "schedule": null
+}
