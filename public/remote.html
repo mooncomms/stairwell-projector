@@ -112,6 +112,19 @@
       <button id="gapsV" disabled>gaps</button>
       <button data-cmd='{"type":"gaps","d":0.25}'>Gaps +</button>
     </div>
+    <div id="paneBox">
+      <div class="row">
+        <button data-cmd='{"type":"pane","dir":-1}'>◂ Pane</button>
+        <button id="paneV" disabled>pane</button>
+        <button data-cmd='{"type":"pane","dir":1}'>Pane ▸</button>
+      </div>
+      <div class="row">
+        <button data-cmd='{"type":"paneShift","dx":-0.25}'>◀</button>
+        <button data-cmd='{"type":"paneShift","dy":-0.25}'>▲</button>
+        <button data-cmd='{"type":"paneShift","dy":0.25}'>▼</button>
+        <button data-cmd='{"type":"paneShift","dx":0.25}'>▶</button>
+      </div>
+    </div>
     <div class="row"><button id="save" data-cmd='{"type":"save"}'>Save</button></div>
   </div>
   </section>
@@ -208,6 +221,8 @@
       $('save').textContent = s.dirty ? 'Save (unsaved changes)' : 'Saved';
       $('gapsRow').style.display = s.panels ? '' : 'none';
       $('gapsV').textContent = `gaps ${s.gapGrow >= 0 ? '+' : ''}${s.gapGrow ?? 0} cm`;
+      $('paneBox').style.display = s.panels ? '' : 'none';
+      if (s.panels) $('paneV').textContent = `pane ${s.selPanel + 1}: ${(s.paneShift || [0, 0]).map((v) => (v >= 0 ? '+' : '') + v).join(', ')} cm`;
       (s.gain || [1, 1, 1]).forEach((v, c) => {
         if (document.activeElement !== $('gain' + c)) { $('gain' + c).value = v; $('gain' + c + 'V').textContent = Number(v).toFixed(2); }
       });

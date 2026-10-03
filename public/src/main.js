@@ -1,6 +1,7 @@
 // Projector page: wires scenes → output warp, calibration, keyboard, and the remote bus.
 import { Output } from './output.js';
 import { Calibrator, defaultCalibration } from './calibrate.js';
+import { squareToQuad, apply as applyH } from './warp.js';
 import { SceneManager } from './scenes.js';
 import testcard, { fill, levels, reference } from './scenes/testcard.js';
 import starfield from './scenes/starfield.js';
@@ -37,6 +38,10 @@ const panels = (config.panels || []).map(({ x, y, w, h }) => ({ x: (x / cmW) * W
 // Panels for the output mask, with every gap between panels widened by `grow` cm
 // (calibration setting "gapGrow", adjustable from the remote; negative narrows).
 // Edges on the wall's outer border stay put.
+// Per-panel content shifts (calibration "panelShift": [[dx, dy] cm, …]) in wall uv.
+const panelShifts = (c) => (config.panels || []).map((_, i) => { const v = c.panelShift?.[i] || [0, 0]; return [v[0] / cmW, v[1] / cmH]; });
+let selPanel = 0;   // which panel the pane controls act on
+
 function maskPanels(grow = 0) {
   const g = grow / 2, e = 0.05;
   return (config.panels || []).map(({ x, y, w, h }) => {
@@ -63,9 +68,9 @@ new p5((p) => {
 
     out = new Output(p);
     const cal = savedCal || defaultCalibration(p.width, p.height, wall.widthM / wall.heightM);
-    calib = new Calibrator(cal, (c) => { out.setCalibration(c); out.setPanels(maskPanels(c.gapGrow)); reportState(); });
+    calib = new Calibrator(cal, (c) => { out.setCalibration(c); out.setPanels(maskPanels(c.gapGrow), panelShifts(c)); reportState(); });
     out.setCalibration(cal);
-    out.setPanels(maskPanels(cal.gapGrow));
+    out.setPanels(maskPanels(cal.gapGrow), panelShifts(cal));
 
     scenes = new SceneManager(p, SCENES, ctx);
     scenes.go(params.get('scene') || scenes.playlist[0] || SCENES[0].name, 0);
@@ -158,6 +163,16 @@ new p5((p) => {
     overlay.style.visibility = visible ? 'visible' : 'hidden';
     if (!visible) return;
     if (calib.active) calib.drawOverlay(octx);
+    if (calib.active && panels.length) {
+      // Outline the pane the Pane controls act on.
+      const Hm = squareToQuad(calib.cal.corners), q = (config.panels || [])[selPanel];
+      if (q) {
+        const pts = [[q.x, q.y], [q.x + q.w, q.y], [q.x + q.w, q.y + q.h], [q.x, q.y + q.h]].map(([x, y]) => applyH(Hm, x / cmW, y / cmH));
+        octx.save(); octx.strokeStyle = '#ff3'; octx.lineWidth = 2; octx.setLineDash([8, 6]);
+        octx.beginPath(); pts.forEach((pt, i) => (i ? octx.lineTo(pt.x, pt.y) : octx.moveTo(pt.x, pt.y))); octx.closePath(); octx.stroke();
+        octx.restore();
+      }
+    }
     const lines = [
       `${Math.round(fps)} fps · ${config.wallName || 'wall'} · scene: ${scenes.name}${blackout ? ' · BLACKOUT' : ''}`,
     ];
@@ -167,6 +182,7 @@ new p5((p) => {
         `CALIBRATING · ${calib.pattern}${calib.dirty ? ' · UNSAVED' : ''}`,
         `bright ${c.brightness.toFixed(2)} · flat ${c.flatten.toFixed(2)}`,
         `feather ${c.feather} · inset ${c.inset}${panels.length ? ` · gaps ${(c.gapGrow ?? 0) >= 0 ? '+' : ''}${c.gapGrow ?? 0} cm (g / G)` : ''}`,
+        ...(panels.length ? [`pane ${selPanel + 1} shift ${(c.panelShift?.[selPanel] || [0, 0]).join(', ')} cm (v select · i j k l move)`] : []),
         `colour ${['R', 'G', 'B'].map((k, i) => `${k} ${(c.gain ?? [1, 1, 1])[i].toFixed(2)}`).join(' ')}`,
         'drag · Tab select · arrows nudge',
         '  (shift ×10, alt ×0.25)',
@@ -220,6 +236,14 @@ new p5((p) => {
       case 'deletePoint': calib.deletePoint(); break;
       case 'feather': calib.set('feather', Math.max(0, +(c.feather + cmd.d).toFixed(2))); break;
       case 'inset': calib.set('inset', +(c.inset + cmd.d).toFixed(2)); break;
+      case 'pane': selPanel = ((selPanel + (cmd.dir || 1)) % panels.length + panels.length) % panels.length; break;
+      case 'paneShift': {
+        const all = (config.panels || []).map((_, i) => [...(c.panelShift?.[i] || [0, 0])]);
+        all[selPanel][0] = +(all[selPanel][0] + (cmd.dx || 0)).toFixed(2);
+        all[selPanel][1] = +(all[selPanel][1] + (cmd.dy || 0)).toFixed(2);
+        calib.set('panelShift', all);
+        break;
+      }
       case 'gaps': calib.set('gapGrow', Math.max(-1, +((c.gapGrow ?? 0) + cmd.d).toFixed(2))); break;
       case 'save': calib.save(); break;
       case 'rotate': calib.rotate(); break;
@@ -241,6 +265,7 @@ new p5((p) => {
         Delete: { type: 'deletePoint' }, Backspace: { type: 'deletePoint' }, s: { type: 'save' },
         '[': { type: 'feather', d: -0.5 }, ']': { type: 'feather', d: 0.5 },
         g: { type: 'gaps', d: 0.25 }, G: { type: 'gaps', d: -0.25 },
+        v: { type: 'pane' }, i: { type: 'paneShift', dy: -0.25 }, k: { type: 'paneShift', dy: 0.25 }, j: { type: 'paneShift', dx: -0.25 }, l: { type: 'paneShift', dx: 0.25 },
         '-': { type: 'inset', d: -0.5 }, '=': { type: 'inset', d: 0.5 },
         r: { type: 'rotate' }, f: { type: 'flip' },
       }[k];
@@ -279,7 +304,7 @@ new p5((p) => {
           selected: calib.selected, handles: calib.handles().length,
           handleName: ((h) => (h ? (h.corner >= 0 ? `${['TL', 'TR', 'BR', 'BL'][h.corner]} corner` : `edge point`) : ''))(calib.handles()[calib.selected]),
           brightness: c.brightness, flatten: c.flatten, feather: c.feather, inset: c.inset, gain: c.gain ?? [1, 1, 1],
-          panels: panels.length, gapGrow: c.gapGrow ?? 0,
+          panels: panels.length, gapGrow: c.gapGrow ?? 0, selPanel, paneShift: c.panelShift?.[selPanel] || [0, 0],
         }),
       }).catch(() => {});
     }, 150);

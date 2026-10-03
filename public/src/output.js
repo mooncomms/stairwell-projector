@@ -39,6 +39,21 @@ uniform float uFlat;
 uniform float uWmin;
 uniform vec4 uPanels[MAX_PANELS]; // physical panels in wall uv: x0, y0, x1, y1
 uniform int uPanelN;              // 0 = the whole wall is one surface
+uniform vec2 uPanelShift[MAX_PANELS]; // per-panel content shift, wall uv (for split prints)
+
+// Content shift for the panel containing uv (a little margin so edges and gaps match
+// their nearest panel).
+vec2 panelShift(vec2 uv) {
+  float best = 1e9; vec2 sh = vec2(0.0);
+  for (int i = 0; i < MAX_PANELS; i++) {
+    if (i >= uPanelN) break;
+    vec4 r = uPanels[i];
+    vec2 c = clamp(uv, r.xy, r.zw);
+    float d = length(uv - c);
+    if (d < best) { best = d; sh = uPanelShift[i]; }
+  }
+  return sh;
+}
 
 // 1 inside any panel, 0 in the gaps between them (and around them).
 float panelMask(vec2 uv) {
@@ -93,7 +108,7 @@ void main() {
     // the colour change lands on the real wall corner, the mask edge is right.
     float stripe = step(0.5, fract((px.x + px.y) / 28.0));
     vec3 outside = vec3(0.95, 0.06, 0.04) * stripe;
-    vec3 inner = texture2D(uTexA, clamp(uv, 0.0, 1.0)).rgb;
+    vec3 inner = texture2D(uTexA, clamp(uv - panelShift(uv), 0.0, 1.0)).rgb;
     bool onWall = sd < 0.0 && uValid > 0.5 && panelMask(uv) > 0.5;
     gl_FragColor = vec4((onWall ? inner : outside) * uBright * uGain, 1.0);
     return;
@@ -102,7 +117,7 @@ void main() {
   inside *= panelMask(uv);
   vec3 col = vec3(0.0);
   if (inside > 0.0 && uValid > 0.5) {
-    vec2 st = clamp(uv, 0.0, 1.0);
+    vec2 st = clamp(uv - panelShift(uv), 0.0, 1.0);
     col = mix(texture2D(uTexA, st).rgb, texture2D(uTexB, st).rgb, uMix);
     // Light per wall area ∝ 1/|w|³. Scale light (linear, hence ^1/2.2) so every
     // part of the wall matches the dimmest one.
@@ -129,10 +144,14 @@ export class Output {
   }
 
   // Panels in wall coordinates (fractions of the wall, 0..1). Empty = no panel mask.
-  setPanels(rects = []) {
+  // shifts: per panel [dx, dy] in wall uv — moves that panel's content.
+  setPanels(rects = [], shifts = []) {
     const flat = new Array(MAX_PANELS * 4).fill(0);
     rects.slice(0, MAX_PANELS).forEach((r, i) => flat.splice(i * 4, 4, r.x0, r.y0, r.x1, r.y1));
     this.panels = flat;
+    const sh = new Array(MAX_PANELS * 2).fill(0);
+    shifts.slice(0, MAX_PANELS).forEach((v, i) => { if (v) { sh[i * 2] = v[0]; sh[i * 2 + 1] = v[1]; } });
+    this.shifts = sh;
     this.panelN = Math.min(MAX_PANELS, rects.length);
   }
 
@@ -175,6 +194,7 @@ export class Output {
     s.setUniform('uWmin', this.wmin);
     s.setUniform('uPanels', this.panels ?? new Array(MAX_PANELS * 4).fill(0));
     s.setUniform('uPanelN', panels ? this.panelN ?? 0 : 0);
+    s.setUniform('uPanelShift', this.shifts ?? new Array(MAX_PANELS * 2).fill(0));
     p.noStroke();
     p.rect(0, 0, p.width, p.height);
   }
