@@ -27,6 +27,7 @@
     { "x": 50.7, "y": 33.6, "r": 7 }
   ],
   "moonsky": { "moon": { "x": 60, "y": 13, "r": 3.2 }, "until": 75, "brightness": 0.5, "speed": 1 },
+  "spotlight": { "image": "spotlight.png", "from": { "x": 30, "y": 57 }, "to": { "x": 42, "y": 14, "r": 9 }, "brightness": 0.8, "on": false },
   "playlist": ["traffic", "glow"],
   "sceneSeconds": 0,
   "crossfadeSeconds": 4,

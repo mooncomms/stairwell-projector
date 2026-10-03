@@ -50,6 +50,9 @@
     <button data-cmd='{"type":"next"}'>Next ▸</button>
     <button id="blackout" data-cmd='{"type":"blackout"}'>Blackout</button>
   </div>
+  <div class="row" id="spotRow">
+    <button id="spotlight" data-cmd='{"type":"spotlight"}'>Spotlight</button>
+  </div>
   </section>
 
   <section id="secLight">
@@ -215,6 +218,9 @@
       $('status').innerHTML = s.scene ? `showing <b>${s.scene}</b>${s.calibrating ? ' · calibrating' : ''}` : 'waiting for projector page…';
       $('scenes').innerHTML = (s.scenes || []).map((n) => `<button data-scene="${n}" class="${n === s.scene ? 'on' : ''}">${n}</button>`).join('');
       $('blackout').classList.toggle('warn', !!s.blackout);
+      $('spotRow').style.display = s.spotlight == null ? 'none' : '';
+      $('spotlight').classList.toggle('on', !!s.spotlight);
+      $('spotlight').textContent = s.spotlight ? 'Spotlight: on' : 'Spotlight: off';
       $('calToggle').classList.toggle('on', !!s.calibrating);
       $('calToggle').textContent = s.calibrating ? 'Done' : 'Calibrate';
       $('pattern').textContent = 'Pattern: ' + (s.pattern || '–');

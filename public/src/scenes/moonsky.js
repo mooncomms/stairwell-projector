@@ -64,7 +64,7 @@ export function makeMoonSky(p, img, W, H, kx, ky, cfg = {}) {
   };
   p.noiseDetail(4, 0.5);
   const far = makeClouds(11.3, 0.012, 0.4), near = makeClouds(57.9, 0.018, 0.46);   // big, soft banks
-  const layer = canvas(W, H), clouds = canvas(W, H);
+  const layer = canvas(W, H), clouds = canvas(W, H), density = canvas(W, H);
 
   const densityAt = (c, off, x, y) => {
     const cx = Math.floor((((x - off) / W) * CW % CW + CW) % CW), cy = Math.min(CH - 1, Math.max(0, Math.floor(y / 3)));
@@ -77,6 +77,8 @@ export function makeMoonSky(p, img, W, H, kx, ky, cfg = {}) {
   };
 
   return {
+    skyMask: softMask,       // white where the print is sky
+    density,                 // current cloud cover (updated by draw)
     draw(ctx, t) {
       const offFar = (t * 4 * speed) % W, offNear = (t * 9 * speed) % W;   // px/s
       // Cloud cover, both layers (screen-like: lighter, capped by the alphas).
@@ -86,6 +88,9 @@ export function makeMoonSky(p, img, W, H, kx, ky, cfg = {}) {
       cc.globalCompositeOperation = 'lighter';
       tile(cc, far, offFar, 0.55);
       tile(cc, near, offNear, 0.6);
+      // Keep a copy of the bare cloud cover for other layers (the spotlight).
+      const dc = density.drawingContext;
+      dc.globalCompositeOperation = 'copy'; dc.drawImage(clouds.elt, 0, 0);
 
       const lc = layer.drawingContext;
       lc.globalCompositeOperation = 'source-over'; lc.globalAlpha = 1;
@@ -127,6 +132,6 @@ export function makeMoonSky(p, img, W, H, kx, ky, cfg = {}) {
       ctx.drawImage(layer.elt, 0, 0);
       ctx.restore();
     },
-    dispose() { softMask.remove(); far.g.remove(); near.g.remove(); layer.remove(); clouds.remove(); },
+    dispose() { softMask.remove(); far.g.remove(); near.g.remove(); layer.remove(); clouds.remove(); density.remove(); },
   };
 }

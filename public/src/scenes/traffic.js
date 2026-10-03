@@ -15,6 +15,7 @@
 import { buildLights } from './glow.js';
 import { sunPosition } from './sky.js';
 import { makeMoonSky } from './moonsky.js';
+import { makeSpotlight } from './spotlight.js';
 
 const TRAFFIC = {
   base: 0.4,               // the artwork's lights between cars (0–1)
@@ -33,10 +34,10 @@ const NIGHT = typeof location !== 'undefined' && new URLSearchParams(location.se
 
 export default {
   name: 'traffic',
-  create(p, g, { W, H, wall, config }) {
+  create(p, g, { W, H, wall, config, flags = {} }) {
     const ctx = g.drawingContext;
     const kx = W / (wall.widthM * 100), ky = H / (wall.heightM * 100), kr = (kx + ky) / 2;
-    let lights = null, bloom = null, moonsky = null, failed = false;
+    let lights = null, bloom = null, moonsky = null, spot = null, failed = false;
     const layer = (() => { const s = p.createGraphics(W, H); s.pixelDensity(1); return s; })();
     const glowLayer = (() => { const s = p.createGraphics(W, H); s.pixelDensity(1); return s; })();
 
@@ -44,6 +45,7 @@ export default {
     else p.loadImage('/media/' + encodeURIComponent(config.reference), (img) => {
       ({ lights, bloom } = buildLights(p, img, W, H));
       if (config.moonsky) moonsky = makeMoonSky(p, img, W, H, kx, ky, config.moonsky);
+      if (config.spotlight) spot = makeSpotlight(p, W, H, kx, ky, config.spotlight, moonsky);
     }, () => { failed = true; });
 
     // Trails as polylines in px, with cumulative length; yellow runs the other way.
@@ -196,6 +198,7 @@ export default {
 
         // 4. Moonlit clouds drifting over the print's sky.
         moonsky?.draw(ctx, t);
+        spot?.draw(ctx, t, dt, flags.spotlight);
 
         // 5. Street lamps: warm glow after sunset (fades in over twilight).
         if (lamps.length) {
@@ -214,7 +217,7 @@ export default {
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1;
       },
-      dispose() { lights?.remove(); bloom?.remove(); moonsky?.dispose(); layer.remove(); glowLayer.remove(); solidLayer.remove(); streaks.remove(); },
+      dispose() { lights?.remove(); bloom?.remove(); moonsky?.dispose(); spot?.dispose(); layer.remove(); glowLayer.remove(); solidLayer.remove(); streaks.remove(); },
     };
   },
 };

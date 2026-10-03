@@ -1,4 +1,5 @@
 import { makeMoonSky } from './moonsky.js';
+import { makeSpotlight } from './spotlight.js';
 // Glow: makes a printed artwork's own lights shine. From the wall's reference image
 // (config "reference" in media/, in wall space) it keeps only the strongly coloured,
 // bright parts — light trails, signs, lamps — at full brightness in their own colour,
@@ -41,9 +42,9 @@ export function buildLights(p, img, W, H, opts = GLOW) {
 
 export default {
   name: 'glow',
-  create(p, g, { W, H, wall, config }) {
+  create(p, g, { W, H, wall, config, flags = {} }) {
     const ctx = g.drawingContext;
-    let lights = null, bloom = null, flow = null, scratch = null, moonsky = null, failed = false;
+    let lights = null, bloom = null, flow = null, scratch = null, moonsky = null, spot = null, failed = false;
 
     const file = config.reference;
     if (!file) failed = true;
@@ -52,7 +53,9 @@ export default {
     function build(img) {
       // 1–2. Light map and its bloom.
       ({ lights, bloom } = buildLights(p, img, W, H));
-      if (config.moonsky) moonsky = makeMoonSky(p, img, W, H, W / (wall.widthM * 100), H / (wall.heightM * 100), config.moonsky);
+      const kx = W / (wall.widthM * 100), ky = H / (wall.heightM * 100);
+      if (config.moonsky) moonsky = makeMoonSky(p, img, W, H, kx, ky, config.moonsky);
+      if (config.spotlight) spot = makeSpotlight(p, W, H, kx, ky, config.spotlight, moonsky);
       // 3. Flow texture: soft horizontal streaks, tiled sideways as it scrolls.
       flow = p.createGraphics(W, H); flow.pixelDensity(1);
       const fc = flow.drawingContext;
@@ -82,7 +85,7 @@ export default {
     }
 
     return {
-      draw(t) {
+      draw(t, dt) {
         ctx.globalCompositeOperation = 'source-over';
         ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
         if (failed) {
@@ -108,8 +111,9 @@ export default {
         ctx.globalAlpha = 1;
         ctx.globalCompositeOperation = 'source-over';
         moonsky?.draw(ctx, t);
+        spot?.draw(ctx, t, Math.min(dt, 0.1), flags.spotlight);
       },
-      dispose() { lights?.remove(); bloom?.remove(); flow?.remove(); scratch?.remove(); moonsky?.dispose(); },
+      dispose() { lights?.remove(); bloom?.remove(); flow?.remove(); scratch?.remove(); moonsky?.dispose(); spot?.dispose(); },
     };
 
   },

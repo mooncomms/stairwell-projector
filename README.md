@@ -20,6 +20,8 @@ One wall is active at a time. Switch walls from the phone remote's **Wall** butt
 
 - `moonsky`: `{ "moon": { "x", "y", "r" }, "until", "brightness", "speed" }` in cm. Soft clouds drift over the print's own sky (only where the reference image is light grey, and above `until`), lit by a dim full moon that the clouds veil as they pass. Used by both `traffic` and `glow`.
 
+- `spotlight`: `{ "image", "from": { "x", "y" }, "to": { "x", "y", "r" }, "brightness", "on" }` in cm. A searchlight behind the buildings throws `image` (in the wall's `media/`, a light symbol on black) onto the clouds. Its beam only shows over the print's sky, and the image shimmers and drifts with the cloud cover. Switch it on and off with **Spotlight** on the remote, or `o`. Images named `spotlight.*` in a wall's `media/` are tracked in git.
+
 Tune the speeds, spacing and brightness in `TRAFFIC` at the top of `public/src/scenes/traffic.js`.
 
 **Camden** (`walls/camden`) is the middle column of a 12-panel Camden Lock print: four panes, 77 cm wide. Its reference image was made by matching a photo of the print on the wall against the full store image, and it lives on the box at `walls/camden/media/reference.jpg`.

@@ -52,7 +52,9 @@ function maskPanels(grow = 0) {
     return { x0: x0 / cmW, y0: y0 / cmH, x1: x1 / cmW, y1: y1 / cmH };
   });
 }
-const ctx = { W, H, wall, config, panels, pxPerM: H / wall.heightM };
+// Runtime switches scenes can read each frame (toggled from the remote).
+const flags = { spotlight: !!config.spotlight?.on };
+const ctx = { W, H, wall, config, panels, flags, pxPerM: H / wall.heightM };
 
 const overlay = document.getElementById('overlay');
 const octx = overlay.getContext('2d');
@@ -220,6 +222,7 @@ new p5((p) => {
       case 'next': scenes.next(); break;
       case 'prev': scenes.prev(); break;
       case 'blackout': blackout = cmd.on ?? !blackout; break;
+      case 'spotlight': flags.spotlight = cmd.on ?? !flags.spotlight; break;
       case 'hud': hud = !hud; break;
       case 'brightness': calib.set('brightness', clamp01(cmd.v ?? c.brightness + (cmd.d || 0))); break;
       case 'flatten': calib.set('flatten', clamp01(cmd.v ?? c.flatten + (cmd.d || 0))); break;
@@ -282,7 +285,7 @@ new p5((p) => {
     }
     const m = {
       c: { type: 'calibrate' }, n: { type: 'next' }, h: { type: 'hud' }, b: { type: 'blackout' },
-      ArrowRight: { type: 'next' }, ArrowLeft: { type: 'prev' },
+      ArrowRight: { type: 'next' }, ArrowLeft: { type: 'prev' }, o: { type: 'spotlight' },
       ',': { type: 'flatten', d: -0.1 }, '.': { type: 'flatten', d: 0.1 },
       ';': { type: 'brightness', d: -0.05 }, "'": { type: 'brightness', d: 0.05 },
     }[k];
@@ -308,7 +311,7 @@ new p5((p) => {
       fetch('/api/state', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          wall: config.wallName, scenes: (scenes.playlist.length ? scenes.playlist : SCENES.map((s) => s.name)), scene: scenes.name, blackout,
+          wall: config.wallName, scenes: (scenes.playlist.length ? scenes.playlist : SCENES.map((s) => s.name)), scene: scenes.name, blackout, spotlight: config.spotlight ? flags.spotlight : null,
           calibrating: calib.active, pattern: calib.pattern, dirty: calib.dirty,
           selected: calib.selected, handles: calib.handles().length,
           handleName: ((h) => (h ? (h.corner >= 0 ? `${['TL', 'TR', 'BR', 'BL'][h.corner]} corner` : `edge point`) : ''))(calib.handles()[calib.selected]),
