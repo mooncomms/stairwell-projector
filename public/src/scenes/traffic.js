@@ -3,7 +3,9 @@
 // along traced trails — red tail lights one way, yellow headlights the other — lighting
 // only the printed streak beneath them. Signs can flicker like old neon, and street
 // lamps glow warm after real sunset. All of it is described in the wall's config:
-//   "trails":  [{ "color": "red" | "yellow", "pts": [[x, y], …] }]   cm, drawn left → right
+//   "trails":  [{ "color": "red" | "yellow", "pts": [[x, y], …], "solid"? }]   cm, left → right
+//              "solid": true draws the light itself along the whole path, for stretches
+//              where the printed streak is washed out (over pale sky, behind a sign)
 //   "flicker": [{ "x", "y", "w", "h" }]                               cm, e.g. a neon sign
 //   "lamps":   [{ "x", "y", "r" }]                                    cm
 //   "moonsky": clouds and a full moon over the print's sky (see moonsky.js)
@@ -48,7 +50,7 @@ export default {
       if (t.color === 'yellow') pts = pts.reverse();
       const cum = [0];
       for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-      return { pts, cum, len: cum[cum.length - 1], color: TRAFFIC.colors[t.color] || TRAFFIC.colors.red, next: rnd(0, 2) };
+      return { pts, cum, len: cum[cum.length - 1], color: TRAFFIC.colors[t.color] || TRAFFIC.colors.red, solid: !!t.solid, next: rnd(0, 2) };
     });
     const at = (tr, s) => {
       s = Math.max(0, Math.min(tr.len, s));
@@ -58,6 +60,19 @@ export default {
       return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
     };
     const pulses = [];
+
+    // Solid trails: their own pulses layer, and a faint continuous streak between cars.
+    const solidLayer = (() => { const s = p.createGraphics(W, H); s.pixelDensity(1); return s; })();
+    const streaks = (() => {
+      const s = p.createGraphics(W, H); s.pixelDensity(1);
+      const c = s.drawingContext;
+      c.lineCap = 'round'; c.lineJoin = 'round'; c.filter = 'blur(3px)';
+      for (const tr of trails.filter((t) => t.solid)) {
+        c.strokeStyle = `rgb(${tr.color})`; c.lineWidth = TRAFFIC.width * kr * 1.3;
+        c.beginPath(); tr.pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.stroke();
+      }
+      return s;
+    })();
 
     const flicker = (config.flicker || []).map((r) => ({ x: r.x * kx, y: r.y * ky, w: r.w * kx, h: r.h * ky, level: 1, until: rnd(4, 12), burst: 0 }));
     const lamps = (config.lamps || []).map((l) => ({ x: l.x * kx, y: l.y * ky, r: l.r * kr }));
@@ -110,6 +125,8 @@ export default {
         lc.globalCompositeOperation = 'source-over'; lc.fillStyle = '#000'; lc.fillRect(0, 0, W, H);
         hc.globalCompositeOperation = 'source-over'; hc.clearRect(0, 0, W, H);
         lc.globalCompositeOperation = 'lighter'; hc.globalCompositeOperation = 'lighter';
+        const sc = solidLayer.drawingContext;
+        sc.globalCompositeOperation = 'source-over'; sc.clearRect(0, 0, W, H); sc.globalCompositeOperation = 'lighter';
         const R = TRAFFIC.width * kr;
         for (let i = pulses.length - 1; i >= 0; i--) {
           const q = pulses[i];
@@ -120,8 +137,16 @@ export default {
             const u = k / steps, [x, y] = at(q.tr, q.s - q.len * (1 - u));   // tail → head
             if (q.s - q.len * (1 - u) < 0) continue;
             const a = q.a * u * u;
-            lc.fillStyle = `rgba(255,255,255,${a})`;
-            lc.beginPath(); lc.arc(x, y, R, 0, Math.PI * 2); lc.fill();
+            if (q.tr.solid) {
+              // Solid trail: the light itself, coloured, with a whiter core at the head.
+              sc.fillStyle = `rgba(${q.tr.color},${a})`;
+              sc.beginPath(); sc.arc(x, y, R * 0.75, 0, Math.PI * 2); sc.fill();
+              sc.fillStyle = `rgba(255,255,255,${a * a * 0.6})`;
+              sc.beginPath(); sc.arc(x, y, R * 0.3, 0, Math.PI * 2); sc.fill();
+            } else {
+              lc.fillStyle = `rgba(255,255,255,${a})`;
+              lc.beginPath(); lc.arc(x, y, R, 0, Math.PI * 2); lc.fill();
+            }
             hc.fillStyle = `rgba(${q.tr.color},${a * 0.5})`;
             hc.beginPath(); hc.arc(x, y, R * 1.1, 0, Math.PI * 2); hc.fill();
           }
@@ -132,6 +157,12 @@ export default {
         // …and add them, plus a soft coloured halo so the motion reads at a glance.
         ctx.globalAlpha = 1;
         ctx.drawImage(layer.elt, 0, 0);
+        // Solid trails: the faint continuous streak, then their pulses, softened.
+        ctx.globalAlpha = TRAFFIC.base * 0.55;
+        ctx.drawImage(streaks.elt, 0, 0);
+        ctx.globalAlpha = 1;
+        ctx.filter = 'blur(1.5px)';
+        ctx.drawImage(solidLayer.elt, 0, 0);
         ctx.filter = 'blur(6px)';
         ctx.globalAlpha = TRAFFIC.halo;
         ctx.drawImage(glowLayer.elt, 0, 0);
@@ -157,7 +188,7 @@ export default {
         ctx.globalCompositeOperation = 'source-over';
         ctx.globalAlpha = 1;
       },
-      dispose() { lights?.remove(); bloom?.remove(); moonsky?.dispose(); layer.remove(); glowLayer.remove(); },
+      dispose() { lights?.remove(); bloom?.remove(); moonsky?.dispose(); layer.remove(); glowLayer.remove(); solidLayer.remove(); streaks.remove(); },
     };
   },
 };

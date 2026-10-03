@@ -14,7 +14,7 @@ One wall is active at a time. Switch walls from the phone remote's **Wall** butt
 - **`reference`**: an image of the artwork, in `media/`, straightened to exactly the wall's shape. The `reference` calibration pattern projects it, so you line up the projected copy with the real print. The `glow` scene uses it to light up the artwork's own lights.
 
 **Traffic** (`traffic` scene) brings a print's light trails to life, driven by the wall's config:
-- `trails`: `[{ "color": "red" | "yellow", "pts": [[x, y], …] }]` in cm, traced along the printed streaks. Red pulses run along them, yellow ones run back.
+- `trails`: `[{ "color": "red" | "yellow", "pts": [[x, y], …] }]` in cm, traced along the printed streaks. Red pulses run along them, yellow ones run back. Normally a pulse only lights where the print has a strong coloured streak. Add `"solid": true` to a trail to draw its own light along the whole path instead, with a faint continuous glow between cars, for stretches where the printed streak is washed out (over pale sky, or behind a sign).
 - `flicker`: `[{ "x", "y", "w", "h" }]` in cm. A region (for example a neon sign) that stutters now and then.
 - `lamps`: `[{ "x", "y", "r" }]` in cm. Warm glows that switch on after real sunset (`?night` forces them on).
 
