@@ -40,19 +40,20 @@ uniform float uWmin;
 uniform vec4 uPanels[MAX_PANELS]; // physical panels in wall uv: x0, y0, x1, y1
 uniform int uPanelN;              // 0 = the whole wall is one surface
 uniform vec2 uPanelShift[MAX_PANELS]; // per-panel content shift, wall uv (for split prints)
+uniform vec2 uPanelScale[MAX_PANELS]; // per-panel content stretch (1 = as is)
 
-// Content shift for the panel containing uv (a little margin so edges and gaps match
-// their nearest panel).
-vec2 panelShift(vec2 uv) {
-  float best = 1e9; vec2 sh = vec2(0.0);
+// Per-panel content correction for split prints: the panel nearest uv (with a little
+// margin, so edges and gaps match their panel) moves its content by its shift and
+// scales it around the panel's centre. Returns where to sample the content.
+vec2 panelXform(vec2 uv) {
+  float best = 1e9; vec2 sh = vec2(0.0), sc = vec2(1.0), ctr = vec2(0.5);
   for (int i = 0; i < MAX_PANELS; i++) {
     if (i >= uPanelN) break;
     vec4 r = uPanels[i];
-    vec2 c = clamp(uv, r.xy, r.zw);
-    float d = length(uv - c);
-    if (d < best) { best = d; sh = uPanelShift[i]; }
+    float d = length(uv - clamp(uv, r.xy, r.zw));
+    if (d < best) { best = d; sh = uPanelShift[i]; sc = uPanelScale[i]; ctr = (r.xy + r.zw) * 0.5; }
   }
-  return sh;
+  return ctr + (uv - ctr - sh) / sc;
 }
 
 // 1 inside any panel, 0 in the gaps between them (and around them).
@@ -108,7 +109,7 @@ void main() {
     // the colour change lands on the real wall corner, the mask edge is right.
     float stripe = step(0.5, fract((px.x + px.y) / 28.0));
     vec3 outside = vec3(0.95, 0.06, 0.04) * stripe;
-    vec3 inner = texture2D(uTexA, clamp(uv - panelShift(uv), 0.0, 1.0)).rgb;
+    vec3 inner = texture2D(uTexA, clamp(panelXform(uv), 0.0, 1.0)).rgb;
     bool onWall = sd < 0.0 && uValid > 0.5 && panelMask(uv) > 0.5;
     gl_FragColor = vec4((onWall ? inner : outside) * uBright * uGain, 1.0);
     return;
@@ -117,7 +118,7 @@ void main() {
   inside *= panelMask(uv);
   vec3 col = vec3(0.0);
   if (inside > 0.0 && uValid > 0.5) {
-    vec2 st = clamp(uv - panelShift(uv), 0.0, 1.0);
+    vec2 st = clamp(panelXform(uv), 0.0, 1.0);
     col = mix(texture2D(uTexA, st).rgb, texture2D(uTexB, st).rgb, uMix);
     // Light per wall area ∝ 1/|w|³. Scale light (linear, hence ^1/2.2) so every
     // part of the wall matches the dimmest one.
@@ -145,13 +146,17 @@ export class Output {
 
   // Panels in wall coordinates (fractions of the wall, 0..1). Empty = no panel mask.
   // shifts: per panel [dx, dy] in wall uv — moves that panel's content.
-  setPanels(rects = [], shifts = []) {
+  // scales: per panel [sx, sy] — stretches it around the panel's centre.
+  setPanels(rects = [], shifts = [], scales = []) {
     const flat = new Array(MAX_PANELS * 4).fill(0);
     rects.slice(0, MAX_PANELS).forEach((r, i) => flat.splice(i * 4, 4, r.x0, r.y0, r.x1, r.y1));
     this.panels = flat;
     const sh = new Array(MAX_PANELS * 2).fill(0);
     shifts.slice(0, MAX_PANELS).forEach((v, i) => { if (v) { sh[i * 2] = v[0]; sh[i * 2 + 1] = v[1]; } });
     this.shifts = sh;
+    const sc = new Array(MAX_PANELS * 2).fill(1);
+    scales.slice(0, MAX_PANELS).forEach((v, i) => { if (v) { sc[i * 2] = v[0]; sc[i * 2 + 1] = v[1]; } });
+    this.scales = sc;
     this.panelN = Math.min(MAX_PANELS, rects.length);
   }
 
@@ -195,6 +200,7 @@ export class Output {
     s.setUniform('uPanels', this.panels ?? new Array(MAX_PANELS * 4).fill(0));
     s.setUniform('uPanelN', panels ? this.panelN ?? 0 : 0);
     s.setUniform('uPanelShift', this.shifts ?? new Array(MAX_PANELS * 2).fill(0));
+    s.setUniform('uPanelScale', this.scales ?? new Array(MAX_PANELS * 2).fill(1));
     p.noStroke();
     p.rect(0, 0, p.width, p.height);
   }

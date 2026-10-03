@@ -40,6 +40,7 @@ const panels = (config.panels || []).map(({ x, y, w, h }) => ({ x: (x / cmW) * W
 // Edges on the wall's outer border stay put.
 // Per-panel content shifts (calibration "panelShift": [[dx, dy] cm, …]) in wall uv.
 const panelShifts = (c) => (config.panels || []).map((_, i) => { const v = c.panelShift?.[i] || [0, 0]; return [v[0] / cmW, v[1] / cmH]; });
+const panelScales = (c) => (config.panels || []).map((_, i) => c.panelScale?.[i] || [1, 1]);
 let selPanel = 0;   // which panel the pane controls act on
 
 function maskPanels(grow = 0) {
@@ -68,9 +69,9 @@ new p5((p) => {
 
     out = new Output(p);
     const cal = savedCal || defaultCalibration(p.width, p.height, wall.widthM / wall.heightM);
-    calib = new Calibrator(cal, (c) => { out.setCalibration(c); out.setPanels(maskPanels(c.gapGrow), panelShifts(c)); reportState(); });
+    calib = new Calibrator(cal, (c) => { out.setCalibration(c); out.setPanels(maskPanels(c.gapGrow), panelShifts(c), panelScales(c)); reportState(); });
     out.setCalibration(cal);
-    out.setPanels(maskPanels(cal.gapGrow), panelShifts(cal));
+    out.setPanels(maskPanels(cal.gapGrow), panelShifts(cal), panelScales(cal));
 
     scenes = new SceneManager(p, SCENES, ctx);
     scenes.go(params.get('scene') || scenes.playlist[0] || SCENES[0].name, 0);
@@ -182,7 +183,7 @@ new p5((p) => {
         `CALIBRATING · ${calib.pattern}${calib.dirty ? ' · UNSAVED' : ''}`,
         `bright ${c.brightness.toFixed(2)} · flat ${c.flatten.toFixed(2)}`,
         `feather ${c.feather} · inset ${c.inset}${panels.length ? ` · gaps ${(c.gapGrow ?? 0) >= 0 ? '+' : ''}${c.gapGrow ?? 0} cm (g / G)` : ''}`,
-        ...(panels.length ? [`pane ${selPanel + 1} shift ${(c.panelShift?.[selPanel] || [0, 0]).join(', ')} cm (v select · i j k l move)`] : []),
+        ...(panels.length ? [`pane ${selPanel + 1} shift ${(c.panelShift?.[selPanel] || [0, 0]).join(', ')} cm · stretch ${(c.panelScale?.[selPanel] || [1, 1]).map((v) => Math.round(v * 1000) / 10 + '%').join(' × ')} (v · ijkl move · u/U n/N stretch)`] : []),
         `colour ${['R', 'G', 'B'].map((k, i) => `${k} ${(c.gain ?? [1, 1, 1])[i].toFixed(2)}`).join(' ')}`,
         'drag · Tab select · arrows nudge',
         '  (shift ×10, alt ×0.25)',
@@ -244,6 +245,13 @@ new p5((p) => {
         calib.set('panelShift', all);
         break;
       }
+      case 'paneScale': {
+        const all = (config.panels || []).map((_, i) => [...(c.panelScale?.[i] || [1, 1])]);
+        all[selPanel][0] = +(all[selPanel][0] + (cmd.dx || 0)).toFixed(3);
+        all[selPanel][1] = +(all[selPanel][1] + (cmd.dy || 0)).toFixed(3);
+        calib.set('panelScale', all);
+        break;
+      }
       case 'gaps': calib.set('gapGrow', Math.max(-1, +((c.gapGrow ?? 0) + cmd.d).toFixed(2))); break;
       case 'save': calib.save(); break;
       case 'rotate': calib.rotate(); break;
@@ -266,6 +274,7 @@ new p5((p) => {
         '[': { type: 'feather', d: -0.5 }, ']': { type: 'feather', d: 0.5 },
         g: { type: 'gaps', d: 0.25 }, G: { type: 'gaps', d: -0.25 },
         v: { type: 'pane' }, i: { type: 'paneShift', dy: -0.25 }, k: { type: 'paneShift', dy: 0.25 }, j: { type: 'paneShift', dx: -0.25 }, l: { type: 'paneShift', dx: 0.25 },
+        u: { type: 'paneScale', dy: 0.005 }, U: { type: 'paneScale', dy: -0.005 }, n: { type: 'paneScale', dx: 0.005 }, N: { type: 'paneScale', dx: -0.005 },
         '-': { type: 'inset', d: -0.5 }, '=': { type: 'inset', d: 0.5 },
         r: { type: 'rotate' }, f: { type: 'flip' },
       }[k];
@@ -304,7 +313,7 @@ new p5((p) => {
           selected: calib.selected, handles: calib.handles().length,
           handleName: ((h) => (h ? (h.corner >= 0 ? `${['TL', 'TR', 'BR', 'BL'][h.corner]} corner` : `edge point`) : ''))(calib.handles()[calib.selected]),
           brightness: c.brightness, flatten: c.flatten, feather: c.feather, inset: c.inset, gain: c.gain ?? [1, 1, 1],
-          panels: panels.length, gapGrow: c.gapGrow ?? 0, selPanel, paneShift: c.panelShift?.[selPanel] || [0, 0],
+          panels: panels.length, gapGrow: c.gapGrow ?? 0, selPanel, paneShift: c.panelShift?.[selPanel] || [0, 0], paneScale: c.panelScale?.[selPanel] || [1, 1],
         }),
       }).catch(() => {});
     }, 150);

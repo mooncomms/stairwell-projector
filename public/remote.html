@@ -124,6 +124,12 @@
         <button data-cmd='{"type":"paneShift","dy":0.25}'>▼</button>
         <button data-cmd='{"type":"paneShift","dx":0.25}'>▶</button>
       </div>
+      <div class="row">
+        <button data-cmd='{"type":"paneScale","dy":-0.005}'>Shorter</button>
+        <button data-cmd='{"type":"paneScale","dy":0.005}'>Taller</button>
+        <button data-cmd='{"type":"paneScale","dx":-0.005}'>Narrower</button>
+        <button data-cmd='{"type":"paneScale","dx":0.005}'>Wider</button>
+      </div>
     </div>
     <div class="row"><button id="save" data-cmd='{"type":"save"}'>Save</button></div>
   </div>
@@ -222,7 +228,7 @@
       $('gapsRow').style.display = s.panels ? '' : 'none';
       $('gapsV').textContent = `gaps ${s.gapGrow >= 0 ? '+' : ''}${s.gapGrow ?? 0} cm`;
       $('paneBox').style.display = s.panels ? '' : 'none';
-      if (s.panels) $('paneV').textContent = `pane ${s.selPanel + 1}: ${(s.paneShift || [0, 0]).map((v) => (v >= 0 ? '+' : '') + v).join(', ')} cm`;
+      if (s.panels) $('paneV').textContent = `pane ${s.selPanel + 1}: ${(s.paneShift || [0, 0]).map((v) => (v >= 0 ? '+' : '') + v).join(', ')} cm · ${(s.paneScale || [1, 1]).map((v) => Math.round(v * 1000) / 10 + '%').join('×')}`;
       (s.gain || [1, 1, 1]).forEach((v, c) => {
         if (document.activeElement !== $('gain' + c)) { $('gain' + c).value = v; $('gain' + c + 'V').textContent = Number(v).toFixed(2); }
       });
