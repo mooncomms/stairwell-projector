@@ -6,7 +6,9 @@
 //
 // Wall config:
 //   "spotlight": { "image": "spotlight.png", "from": { "x", "y" }, "to": { "x", "y", "r" },
-//                  "brightness": 0.8, "on": false }         cm from the print's top-left
+//                  "brightness": 0.8, "on": false,
+//                  "squash": 0.55, "keystone": 0.72 }      cm from the print's top-left
+// squash: vertical foreshortening (1 = flat on); keystone: far-edge width (1 = none).
 // The image: a light symbol on black (black = no light).
 
 const BEAM = [255, 236, 190];   // warm searchlight
@@ -16,8 +18,11 @@ export function makeSpotlight(p, W, H, kx, ky, cfg, moonsky) {
   const from = { x: cfg.from.x * kx, y: cfg.from.y * ky };
   const to = { x: cfg.to.x * kx, y: cfg.to.y * ky, r: (cfg.to.r ?? 8) * k };
   const bright = cfg.brightness ?? 0.8;
+  // Perspective: the image lands on a cloud deck overhead, seen from below at an angle,
+  // so it's squashed vertically and its far (upper) edge is narrower.
+  const squash = cfg.squash ?? 0.55, keystone = cfg.keystone ?? 0.72;
   const canvas = (w, h) => { const g = p.createGraphics(w, h); g.pixelDensity(1); return g; };
-  let logo = null, level = 0;
+  let logo = null, warped = null, level = 0;
 
   // The image as light: its brightness becomes the light's strength, in beam colour.
   p.loadImage('/media/' + encodeURIComponent(cfg.image), (img) => {
@@ -35,6 +40,15 @@ export function makeSpotlight(p, W, H, kx, ky, cfg, moonsky) {
       px[i] = BEAM[0] * a; px[i + 1] = BEAM[1] * a; px[i + 2] = BEAM[2] * a; px[i + 3] = 255;
     }
     logo.updatePixels();
+    // Bake the perspective once: rows squashed vertically, narrower towards the top.
+    const R = to.r, step = 2;
+    warped = canvas(Math.ceil(2 * R), Math.ceil(2 * R * squash) + 2);
+    const wc = warped.drawingContext;
+    for (let j = 0; j < S; j += step) {
+      const v = j / S;                                   // 0 = far (top) edge
+      const wf = keystone + (1 - keystone) * v;          // width at this row
+      wc.drawImage(logo.elt, 0, j, S, step, R - R * wf, v * 2 * R * squash, 2 * R * wf, (2 * R * step / S) * squash + 0.6);
+    }
   });
 
   const layer = canvas(W, H), mod = canvas(W, H);
@@ -42,7 +56,7 @@ export function makeSpotlight(p, W, H, kx, ky, cfg, moonsky) {
   return {
     draw(ctx, t, dt, on) {
       level += ((on ? 1 : 0) - level) * Math.min(1, dt * 1.2);
-      if (level < 0.01 || !logo) return;
+      if (level < 0.01 || !warped) return;
       const lc = layer.drawingContext;
       lc.globalCompositeOperation = 'source-over'; lc.globalAlpha = 1;
       lc.fillStyle = '#000'; lc.fillRect(0, 0, W, H);
@@ -51,14 +65,23 @@ export function makeSpotlight(p, W, H, kx, ky, cfg, moonsky) {
       const sway = Math.sin(t * 0.11) * 0.06 + Math.sin(t * 0.037 + 1) * 0.04;
       const tx = to.x + sway * to.r * 2, ty = to.y + Math.sin(t * 0.07) * to.r * 0.05;
 
-      // 1. The image with a soft halo of spill around it.
+      // 1. The image with a soft halo of spill around it, in perspective: turned to
+      //    face the beam, squashed vertically, narrower at its far (upper) edge.
       lc.globalCompositeOperation = 'lighter';
-      const halo = lc.createRadialGradient(tx, ty, to.r * 0.6, tx, ty, to.r * 1.3);
+      const tilt = Math.atan2(ty - from.y, tx - from.x) + Math.PI / 2;
+      lc.save();
+      lc.translate(tx, ty);
+      lc.rotate(tilt);
+      lc.save();
+      lc.scale(1, squash);
+      const halo = lc.createRadialGradient(0, 0, to.r * 0.6, 0, 0, to.r * 1.3);
       halo.addColorStop(0, `rgba(${BEAM},0.12)`); halo.addColorStop(1, `rgba(${BEAM},0)`);
-      lc.fillStyle = halo; lc.beginPath(); lc.arc(tx, ty, to.r * 1.3, 0, Math.PI * 2); lc.fill();
+      lc.fillStyle = halo; lc.beginPath(); lc.arc(0, 0, to.r * 1.3, 0, Math.PI * 2); lc.fill();
+      lc.restore();
       lc.filter = 'blur(1px)';
-      lc.drawImage(logo.elt, tx - to.r, ty - to.r, to.r * 2, to.r * 2);
+      lc.drawImage(warped.elt, -warped.width / 2, -warped.height / 2);
       lc.filter = 'none';
+      lc.restore();
 
       // 2. Clouds carry the image: thicker cloud = brighter, and it drifts with them.
       if (moonsky) {
@@ -100,6 +123,6 @@ export function makeSpotlight(p, W, H, kx, ky, cfg, moonsky) {
       ctx.drawImage(layer.elt, 0, 0);
       ctx.restore();
     },
-    dispose() { logo?.remove(); layer.remove(); mod.remove(); },
+    dispose() { logo?.remove(); warped?.remove(); layer.remove(); mod.remove(); },
   };
 }

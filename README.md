@@ -20,7 +20,7 @@ One wall is active at a time. Switch walls from the phone remote's **Wall** butt
 
 - `moonsky`: `{ "moon": { "x", "y", "r" }, "until", "brightness", "speed" }` in cm. Soft clouds drift over the print's own sky (only where the reference image is light grey, and above `until`), lit by a dim full moon that the clouds veil as they pass. Used by both `traffic` and `glow`.
 
-- `spotlight`: `{ "image", "from": { "x", "y" }, "to": { "x", "y", "r" }, "brightness", "on" }` in cm. A searchlight behind the buildings throws `image` (in the wall's `media/`, a light symbol on black) onto the clouds. Its beam only shows over the print's sky, and the image shimmers and drifts with the cloud cover. Switch it on and off with **Spotlight** on the remote, or `o`. Images named `spotlight.*` in a wall's `media/` are tracked in git.
+- `spotlight`: `{ "image", "from": { "x", "y" }, "to": { "x", "y", "r" }, "brightness", "on" }` in cm. A searchlight behind the buildings throws `image` (in the wall's `media/`, a light symbol on black) onto the clouds. Its beam only shows over the print's sky, and the image shimmers and drifts with the cloud cover. The image is drawn in perspective, as if on a cloud deck overhead: `squash` (default 0.55) flattens it vertically, and `keystone` (default 0.72) narrows its far edge. Switch it on and off with **Spotlight** on the remote, or `o`. Images named `spotlight.*` in a wall's `media/` are tracked in git.
 
 Tune the speeds, spacing and brightness in `TRAFFIC` at the top of `public/src/scenes/traffic.js`.
 
