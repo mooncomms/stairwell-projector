@@ -6,6 +6,8 @@
 //   "trails":  [{ "color": "red" | "yellow", "pts": [[x, y], …], "solid"? }]   cm, left → right
 //              "solid": true draws the light itself along the whole path, for stretches
 //              where the printed streak is washed out (over pale sky, behind a sign)
+//              "width": [start, end] cm — or one value per point — tapers a solid trail
+//              (perspective: the far end of a streak is thinner)
 //   "flicker": [{ "x", "y", "w", "h" }]                               cm, e.g. a neon sign
 //   "lamps":   [{ "x", "y", "r" }]                                    cm
 //   "moonsky": clouds and a full moon over the print's sky (see moonsky.js)
@@ -50,7 +52,11 @@ export default {
       if (t.color === 'yellow') pts = pts.reverse();
       const cum = [0];
       for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-      return { pts, cum, len: cum[cum.length - 1], color: TRAFFIC.colors[t.color] || TRAFFIC.colors.red, solid: !!t.solid, next: rnd(0, 2) };
+      // Width (diameter, px) along the path; given left → right like the points.
+      let w = (t.width || [TRAFFIC.width * 2, TRAFFIC.width * 2]).map((v) => v * kr);
+      if (w.length !== t.pts.length) w = t.pts.map((_, i) => w[0] + (w[w.length - 1] - w[0]) * (i / (t.pts.length - 1)));   // start/end → per point
+      if (t.color === 'yellow') w = w.reverse();
+      return { pts, cum, len: cum[cum.length - 1], color: TRAFFIC.colors[t.color] || TRAFFIC.colors.red, solid: !!t.solid, w, next: rnd(0, 2) };
     });
     const at = (tr, s) => {
       s = Math.max(0, Math.min(tr.len, s));
@@ -60,18 +66,35 @@ export default {
       return [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
     };
     const pulses = [];
+    const widthAt = (tr, s) => {
+      s = Math.max(0, Math.min(tr.len, s));
+      let i = 1; while (i < tr.cum.length - 1 && tr.cum[i] < s) i++;
+      const u = (s - tr.cum[i - 1]) / (tr.cum[i] - tr.cum[i - 1] || 1);
+      return tr.w[i - 1] + (tr.w[i] - tr.w[i - 1]) * u;
+    };
 
     // Solid trails: their own pulses layer, and a faint continuous streak between cars.
     const solidLayer = (() => { const s = p.createGraphics(W, H); s.pixelDensity(1); return s; })();
     const streaks = (() => {
       const s = p.createGraphics(W, H); s.pixelDensity(1);
       const c = s.drawingContext;
-      c.lineCap = 'round'; c.lineJoin = 'round'; c.filter = 'blur(3px)';
+      c.lineCap = 'round'; c.lineJoin = 'round';
       for (const tr of trails.filter((t) => t.solid)) {
-        c.strokeStyle = `rgb(${tr.color})`; c.lineWidth = TRAFFIC.width * kr * 1.3;
-        c.beginPath(); tr.pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.stroke();
+        // Short segments so the width can taper along the path.
+        c.strokeStyle = `rgb(${tr.color})`;
+        const n = Math.ceil(tr.len / 4);
+        for (let k = 0; k < n; k++) {
+          const s0 = (k / n) * tr.len, s1 = ((k + 1) / n) * tr.len, [x0, y0] = at(tr, s0), [x1, y1] = at(tr, s1);
+          c.lineWidth = widthAt(tr, (s0 + s1) / 2) * 0.65;
+          c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke();
+        }
       }
-      return s;
+      // Soften once at the end (a filter on every segment would blur the canvas each time).
+      const soft = p.createGraphics(W, H); soft.pixelDensity(1);
+      soft.drawingContext.filter = 'blur(3px)';
+      soft.drawingContext.drawImage(s.elt, 0, 0);
+      s.remove();
+      return soft;
     })();
 
     const flicker = (config.flicker || []).map((r) => ({ x: r.x * kx, y: r.y * ky, w: r.w * kx, h: r.h * ky, level: 1, until: rnd(4, 12), burst: 0 }));
@@ -138,17 +161,20 @@ export default {
             if (q.s - q.len * (1 - u) < 0) continue;
             const a = q.a * u * u;
             if (q.tr.solid) {
-              // Solid trail: the light itself, coloured, with a whiter core at the head.
+              // Solid trail: the light itself, coloured, with a whiter core at the head,
+              // as wide as the printed streak is at this point.
+              const r = widthAt(q.tr, q.s - q.len * (1 - u)) * 0.4;
               sc.fillStyle = `rgba(${q.tr.color},${a})`;
-              sc.beginPath(); sc.arc(x, y, R * 0.75, 0, Math.PI * 2); sc.fill();
+              sc.beginPath(); sc.arc(x, y, r, 0, Math.PI * 2); sc.fill();
               sc.fillStyle = `rgba(255,255,255,${a * a * 0.6})`;
-              sc.beginPath(); sc.arc(x, y, R * 0.3, 0, Math.PI * 2); sc.fill();
+              sc.beginPath(); sc.arc(x, y, r * 0.4, 0, Math.PI * 2); sc.fill();
             } else {
               lc.fillStyle = `rgba(255,255,255,${a})`;
               lc.beginPath(); lc.arc(x, y, R, 0, Math.PI * 2); lc.fill();
             }
             hc.fillStyle = `rgba(${q.tr.color},${a * 0.5})`;
-            hc.beginPath(); hc.arc(x, y, R * 1.1, 0, Math.PI * 2); hc.fill();
+            const hr = q.tr.solid ? widthAt(q.tr, q.s - q.len * (1 - u)) * 0.6 : R * 1.1;
+            hc.beginPath(); hc.arc(x, y, hr, 0, Math.PI * 2); hc.fill();
           }
         }
         // …keep them only where the print has light (so they follow the real streak)…
