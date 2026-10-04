@@ -1,5 +1,6 @@
 {
   "title": "Stairwell",
+  "frames": true,
   "wall": { "widthM": 1.2, "heightM": 2.4 },
   "contentHeight": 1600,
   "playlist": ["painting", "icarus", "starfield", "nebula", "boids", "trippy", "underwater", "destroyer", "jellyfish", "rain", "aurora", "sky", "lavalamp"],

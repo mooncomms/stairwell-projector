@@ -27,6 +27,10 @@ uniform float uValid;
 uniform sampler2D uTexA;
 uniform sampler2D uTexB;
 uniform float uMix;
+uniform sampler2D uFrameA;        // window-frame overlays (wall space, alpha = frame)
+uniform sampler2D uFrameB;
+uniform float uFrameOnA;          // 0 = no frame for that layer
+uniform float uFrameOnB;
 uniform vec2 uPoly[MAX_PTS + 1];  // closed polygon (last == first), CSS px
 uniform int uPolyN;               // number of segments
 uniform float uFeather;
@@ -119,7 +123,11 @@ void main() {
   vec3 col = vec3(0.0);
   if (inside > 0.0 && uValid > 0.5) {
     vec2 st = clamp(panelXform(uv), 0.0, 1.0);
-    col = mix(texture2D(uTexA, st).rgb, texture2D(uTexB, st).rgb, uMix);
+    vec3 ca = texture2D(uTexA, st).rgb, cb = texture2D(uTexB, st).rgb;
+    vec4 fa = texture2D(uFrameA, st), fb = texture2D(uFrameB, st);
+    ca = mix(ca, fa.rgb, fa.a * uFrameOnA);      // each scene wears its own frame,
+    cb = mix(cb, fb.rgb, fb.a * uFrameOnB);      // so frames crossfade with scenes
+    col = mix(ca, cb, uMix);
     // Light per wall area ∝ 1/|w|³. Scale light (linear, hence ^1/2.2) so every
     // part of the wall matches the dimmest one.
     float gain = min(pow(uWmin / abs(h.z), 3.0), 1.0);
@@ -177,7 +185,7 @@ export class Output {
   }
 
   // texA/texB: p5.Graphics in wall space. mix: 0 → A, 1 → B.
-  render(texA, texB, mix, { brightness = 1, flatten = 0, maskOn = true, edgeCheck = false, gain = [1, 1, 1], panels = true } = {}) {
+  render(texA, texB, mix, { brightness = 1, flatten = 0, maskOn = true, edgeCheck = false, gain = [1, 1, 1], panels = true, frameA = null, frameB = null } = {}) {
     const p = this.p, s = this.shader, cal = this.cal;
     p.shader(s);
     s.setUniform('uRes', [p.width, p.height]);
@@ -187,6 +195,12 @@ export class Output {
     s.setUniform('uTexA', texA);
     s.setUniform('uTexB', texB || texA);
     s.setUniform('uMix', texB ? mix : 0);
+    // Frames: a 1×1 transparent stand-in when a layer has none.
+    this.noFrame ??= (() => { const g = p.createGraphics(1, 1); g.pixelDensity(1); g.clear(); return g; })();
+    s.setUniform('uFrameA', frameA || this.noFrame);
+    s.setUniform('uFrameB', (texB ? frameB : frameA) || this.noFrame);
+    s.setUniform('uFrameOnA', frameA ? 1 : 0);
+    s.setUniform('uFrameOnB', (texB ? frameB : frameA) ? 1 : 0);
     s.setUniform('uPoly', this.poly);
     s.setUniform('uPolyN', this.polyN);
     s.setUniform('uFeather', cal.feather ?? 1.5);

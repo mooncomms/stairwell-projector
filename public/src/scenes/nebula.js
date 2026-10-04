@@ -72,6 +72,7 @@ void main() {
 
 export default {
   name: 'nebula',
+  frame: 'ship',                 // default window frame (stairwell)
   create(p, g, { W, H }) {
     const ctx = g.drawingContext;
     const SH = Math.round(H * 1.3);                             // taller than the wall, to drift

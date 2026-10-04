@@ -21,6 +21,7 @@ const SEEK = typeof location !== 'undefined' ? +new URLSearchParams(location.sea
 
 export default {
   name: 'destroyer',
+  frame: 'ship',                 // default window frame (stairwell)
   create(p, g, { W, H }) {
     const ctx = g.drawingContext;
     const rnd = (a, b) => a + Math.random() * (b - a);

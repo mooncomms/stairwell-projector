@@ -2,6 +2,7 @@
 // twinkle, and the odd shooting star.
 export default {
   name: 'starfield',
+  frame: 'ship',                 // default window frame (stairwell)
   create(p, g, { W, H }) {
     // Nebula: fbm noise baked once at 1/4 resolution, upscaled with smoothing.
     const NS = 4, nw = Math.ceil(W / NS), nh = Math.ceil((H * 1.3) / NS);

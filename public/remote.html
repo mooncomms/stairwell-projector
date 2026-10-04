@@ -50,6 +50,11 @@
     <button data-cmd='{"type":"next"}'>Next ▸</button>
     <button id="blackout" data-cmd='{"type":"blackout"}'>Blackout</button>
   </div>
+  <div class="row" id="frameRow">
+    <label style="margin:0;flex:1"><span>Frame</span>
+      <select id="frameSel" style="flex:1;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:12px 8px;font:inherit"></select>
+    </label>
+  </div>
   <div class="row" id="spotRow">
     <button id="spotlight" data-cmd='{"type":"spotlight"}'>Spotlight</button>
   </div>
@@ -190,6 +195,9 @@
       });
     }
 
+    // Window frame: auto (scene default), none, or a named frame.
+    $('frameSel').addEventListener('change', (e) => send({ type: 'frame', v: e.target.value }));
+
     // Colour balance: one slider per channel.
     [0, 1, 2].forEach((c) => {
       let t = 0;
@@ -219,6 +227,12 @@
       $('scenes').innerHTML = (s.scenes || []).map((n) => `<button data-scene="${n}" class="${n === s.scene ? 'on' : ''}">${n}</button>`).join('');
       $('blackout').classList.toggle('warn', !!s.blackout);
       $('spotRow').style.display = s.spotlight == null ? 'none' : '';
+      $('frameRow').style.display = s.frames ? '' : 'none';
+      if (s.frames && document.activeElement !== $('frameSel')) {
+        const opts = [['auto', 'Auto (scene default)'], ['none', 'None'], ...Object.entries(s.frames)];
+        $('frameSel').innerHTML = opts.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+        $('frameSel').value = s.frame || 'auto';
+      }
       $('spotlight').classList.toggle('on', !!s.spotlight);
       $('spotlight').textContent = s.spotlight ? 'Spotlight: on' : 'Spotlight: off';
       $('calToggle').classList.toggle('on', !!s.calibrating);

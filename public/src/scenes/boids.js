@@ -2,6 +2,7 @@
 // drift in and out of frame like they would past a real window.
 export default {
   name: 'boids',
+  frame: 'house',                 // default window frame (stairwell)
   create(p, g, { W, H }) {
     const N = 700;
     const MX = W * 0.6, MY = H * 0.25;                  // world margin beyond the wall

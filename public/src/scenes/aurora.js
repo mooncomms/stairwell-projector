@@ -52,6 +52,7 @@ void main() {
 
 export default {
   name: 'aurora',
+  frame: 'house',                 // default window frame (stairwell)
   create(p, g, { W, H }) {
     const ctx = g.drawingContext;
     const rnd = (a, b) => a + Math.random() * (b - a);

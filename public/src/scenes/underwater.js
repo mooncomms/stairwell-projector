@@ -81,6 +81,7 @@ void main() {
 
 export default {
   name: 'underwater',
+  frame: 'sub',                 // default window frame (stairwell)
   create(p, g, { W, H }) {
     const ctx = g.drawingContext;
 

@@ -133,6 +133,7 @@ void main() {
 
 export default {
   name: 'sky',
+  frame: 'house',                 // default window frame (stairwell)
   webgl: true,
   create(p, g, { W, H, config }) {
     const cfg = { lat: 40.4, lon: -3.7, facing: 270, clouds: 0.45, ...(config.sky || {}) };

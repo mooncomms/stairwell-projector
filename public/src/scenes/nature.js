@@ -2,6 +2,7 @@
 // zoom/pan on stills and crossfades between items.
 export default {
   name: 'nature',
+  frame: 'house',                 // default window frame (stairwell)
   create(p, g, { W, H, config }) {
     const ITEM = config.natureItemSeconds ?? 45, FADE = 3;
     let items = [], idx = -1, cur = null, prev = null, since = 0, disposed = false;

@@ -2,6 +2,7 @@
 import { Output } from './output.js';
 import { Calibrator, defaultCalibration } from './calibrate.js';
 import { squareToQuad, apply as applyH } from './warp.js';
+import { FRAMES, FRAME_NAMES } from './frames.js';
 import { SceneManager } from './scenes.js';
 import testcard, { fill, levels, reference } from './scenes/testcard.js';
 import starfield from './scenes/starfield.js';
@@ -56,6 +57,17 @@ function maskPanels(grow = 0) {
 const flags = { spotlight: !!config.spotlight?.on };
 const ctx = { W, H, wall, config, panels, flags, pxPerM: H / wall.heightM };
 
+// Window frames (walls with "frames": true). Chosen per wall from the remote and saved
+// with its calibration: 'auto' = each scene's own default, 'none', or a frame name.
+const frameCache = {};
+function frameFor(p, def, cal) {
+  if (!config.frames || !def) return null;
+  const choice = cal.frame ?? 'auto';
+  const name = choice === 'auto' ? def.frame : choice;
+  if (!name || !FRAMES[name]) return null;
+  return frameCache[name] || null;
+}
+
 const overlay = document.getElementById('overlay');
 const octx = overlay.getContext('2d');
 const params = new URLSearchParams(location.search);
@@ -74,6 +86,8 @@ new p5((p) => {
     calib = new Calibrator(cal, (c) => { out.setCalibration(c); out.setPanels(maskPanels(c.gapGrow), panelShifts(c), panelScales(c)); reportState(); });
     out.setCalibration(cal);
     out.setPanels(maskPanels(cal.gapGrow), panelShifts(cal), panelScales(cal));
+    // Build the window frames up front (building them mid-draw gave broken canvases).
+    if (config.frames) for (const name of Object.keys(FRAMES)) frameCache[name] = FRAMES[name](p, W, H, H / (wall.heightM * 100));
 
     scenes = new SceneManager(p, SCENES, ctx);
     scenes.go(params.get('scene') || scenes.playlist[0] || SCENES[0].name, 0);
@@ -152,6 +166,8 @@ new p5((p) => {
         maskOn: !(calib.active && calib.pattern === 'frame'),
         gain: cal.gain ?? [1, 1, 1],
         panels: !(scenes.current?.def.outside),        // scenes may draw around the panels
+        frameA: frameFor(p, scenes.current?.def, cal),
+        frameB: frameFor(p, scenes.incoming?.def, cal),
       });
     }
     drawOverlay();
@@ -223,6 +239,7 @@ new p5((p) => {
       case 'prev': scenes.prev(); break;
       case 'blackout': blackout = cmd.on ?? !blackout; break;
       case 'spotlight': flags.spotlight = cmd.on ?? !flags.spotlight; break;
+      case 'frame': if (config.frames && (cmd.v === 'auto' || cmd.v === 'none' || FRAMES[cmd.v])) calib.set('frame', cmd.v); break;
       case 'hud': hud = !hud; break;
       case 'brightness': calib.set('brightness', clamp01(cmd.v ?? c.brightness + (cmd.d || 0))); break;
       case 'flatten': calib.set('flatten', clamp01(cmd.v ?? c.flatten + (cmd.d || 0))); break;
@@ -312,6 +329,7 @@ new p5((p) => {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           wall: config.wallName, scenes: (scenes.playlist.length ? scenes.playlist : SCENES.map((s) => s.name)), scene: scenes.name, blackout, spotlight: config.spotlight ? flags.spotlight : null,
+          frames: config.frames ? FRAME_NAMES : null, frame: calib.cal.frame ?? 'auto',
           calibrating: calib.active, pattern: calib.pattern, dirty: calib.dirty,
           selected: calib.selected, handles: calib.handles().length,
           handleName: ((h) => (h ? (h.corner >= 0 ? `${['TL', 'TR', 'BR', 'BL'][h.corner]} corner` : `edge point`) : ''))(calib.handles()[calib.selected]),

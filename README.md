@@ -83,6 +83,17 @@ Put images in the wall's `media/paintings/`. The `painting` scene fits each one 
 
 `every` is the random gap between blinks, in seconds. Open `?scene=painting&lids` to hold every lid shut while you check the positions.
 
+## Window frames
+On walls with `"frames": true` (the stairwell), a window frame can be laid over the scene, inside the calibrated rectangle, to sell the "window" illusion. Pick one with the **Frame** drop-down on the remote:
+- **Auto:** each scene's own default (`frame:` in its scene file):
+  - **house:** sky, aurora, rain, boids, nature.
+  - **sub:** underwater, jellyfish.
+  - **ship:** starfield, nebula, destroyer.
+  - The rest have no frame.
+- **None**, **House window**, **Porthole (sub base)**, **Spaceship viewport**: the same frame for every scene.
+
+The choice is saved per wall with its calibration. Each scene's frame crossfades with it. Frames are drawn in `public/src/frames.js`, and kept fairly dark because they're projected light too.
+
 ## Live sky
 The `sky` scene shows the real sky right now: sun position, colours, clouds, stars and moon phase. Set it up in the wall's `config.json` under `"sky"`:
 - `lat` and `lon`: your location.
