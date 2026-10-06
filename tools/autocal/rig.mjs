@@ -5,7 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 export function parseArgs(argv) {
-  return Object.fromEntries(argv.reduce((a, v, i, all) => (v.startsWith('--') ? [...a, [v.slice(2), all[i + 1]]] : a), []));
+  // --name value, or a bare --flag (value true).
+  return Object.fromEntries(argv.reduce((a, v, i, all) => (v.startsWith('--') ? [...a, [v.slice(2), all[i + 1] && !all[i + 1].startsWith('--') ? all[i + 1] : true]] : a), []));
 }
 
 export async function openRig({ port = 8090, adb: ADB = 'adb', serial, exposure } = {}) {
