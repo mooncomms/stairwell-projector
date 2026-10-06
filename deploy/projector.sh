@@ -19,8 +19,12 @@ booted() { [ "$(sh_ getprop sys.boot_completed)" = 1 ]; }
 
 hdmi() {
   # The projector's live-TV app opens the last-used HDMI source (persist.sys.hdmisource).
-  sh_ am start -n com.softwinner.awlivetv/.MainActivity >/dev/null && echo "projector: HDMI"
+  # With "force", restart it so it re-tunes (it can get stuck on "no signal" if it was
+  # opened while this box was still starting up its display).
+  sh_ am start ${1:+-S} -n com.softwinner.awlivetv/.MainActivity >/dev/null && echo "projector: HDMI${1:+ (re-tuned)}"
 }
+# Is the wall page up on this box (so HDMI is really carrying a picture)?
+page_up() { timeout 2 curl -s -N http://localhost:${PORT:-8080}/api/events 2>/dev/null | grep -q '"scene"'; }
 
 case "${1:-status}" in
   hdmi)
@@ -28,23 +32,31 @@ case "${1:-status}" in
     hdmi ;;
   off)
     connected || { echo "projector: not connected (already off?)"; exit 0; }
-    # The power key opens a shutdown dialog that counts down from 2 s with Shutdown
-    # selected; let it run out.
-    sh_ input keyevent KEYCODE_POWER >/dev/null && echo "projector: shutting down" ;;
+    # The power key opens a shutdown dialog with Shutdown already selected (it would
+    # count down by itself); confirm it straight away.
+    sh_ input keyevent KEYCODE_POWER >/dev/null
+    sleep 1
+    sh_ input keyevent KEYCODE_ENTER >/dev/null
+    echo "projector: shutting down" ;;
   status)
     if connected; then
       echo "projector: connected, booted=$(booted && echo yes || echo no)"
       sh_ dumpsys activity activities | grep -m1 topResumedActivity | sed 's/^ */on screen: /'
     else echo "projector: not connected"; fi ;;
   watch)
-    # Switch to HDMI once per projector boot (so its menus stay usable afterwards).
-    last=""
+    # Once per projector boot (so its menus stay usable afterwards): switch to HDMI, then,
+    # once the wall page is up here, re-tune once so a "no signal" from startup clears.
+    last="" retuned=""
     while true; do
       if connected && booted; then
         id=$(sh_ cat /proc/sys/kernel/random/boot_id)
         if [ -n "$id" ] && [ "$id" != "$last" ]; then
           sleep 4      # let its launcher settle first
-          hdmi && last="$id"
+          hdmi && last="$id" && since=$(date +%s)
+        elif [ -n "$last" ] && [ "$retuned" != "$last" ]; then
+          if page_up; then sleep 5; hdmi force; retuned="$last"
+          elif [ $(( $(date +%s) - since )) -gt 600 ]; then retuned="$last"   # give up after 10 min
+          fi
         fi
       fi
       sleep 5
