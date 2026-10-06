@@ -25,8 +25,13 @@ const out = path.join(root, 'data', 'autocal', `${wall}-${new Date().toISOString
 const rigArgs = ['--port', port, ...(args.adb ? ['--adb', args.adb] : []), ...(args.serial ? ['--serial', args.serial] : []), '--exposure', args.exposure || 50];
 
 const run = (cmd, a) => execFileSync(cmd, a, { stdio: 'inherit', cwd: root });
+const send = (cmd) => fetch(`${base}/api/cmd`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) });
+// Switch the projector page to the pattern page, and back to the wall at the end.
+await send({ type: 'goto', url: '/autocal.html' });
+await new Promise((r) => setTimeout(r, 4000));
+const back = () => send({ type: 'goto', url: '/' });
 console.log(`autocal: wall ${wall} → ${out}`);
-run('node', [path.join(here, 'capture.mjs'), '--out', out, ...rigArgs]);
+try { run('node', [path.join(here, 'capture.mjs'), '--out', out, ...rigArgs]); } finally { await back(); }
 run('node', [path.join(here, 'decode.mjs'), out]);
 const py = fs.existsSync(path.join(root, 'data/tools/venv/bin/python')) ? path.join(root, 'data/tools/venv/bin/python') : 'python3';
 run(py, [path.join(here, 'find_print.py'), out, path.join(out, 'white.yuv'), path.join(root, 'walls', wall, 'media', config.reference), '--panels', path.join(root, 'walls', wall, 'config.json')]);

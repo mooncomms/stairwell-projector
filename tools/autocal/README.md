@@ -20,7 +20,7 @@ The HY320's built-in camera sits next to the lens and sees the whole projected a
 ## Running it
 - **Requirements:**
   - The stairwall server, with the wall active.
-  - `autocal.html` full-screen on the projector.
+  - The projector page open (the kiosk). `run.mjs` switches it to `autocal.html` for the capture and back afterwards.
   - The projector on USB debugging, with camgrab pushed there (`tools/camgrab/snap.sh` does it).
   - The tools venv with OpenCV: `python3 -m venv data/tools/venv && data/tools/venv/bin/pip install opencv-python-headless numpy`.
 - **Command:** `node tools/autocal/run.mjs --apply`. Add `--adb`, `--serial`, `--port` or `--exposure` as needed.

@@ -278,6 +278,7 @@ new p5((p) => {
       case 'flip': calib.flip(); break;
       case 'reset': calib.cal = Object.assign(calib.cal, defaultCalibration(p.width, p.height, wall.widthM / wall.heightM)); calib.selected = 0; calib.changed(); break;
       case 'reload': location.reload(); break;
+      case 'goto': if (typeof cmd.url === 'string' && cmd.url.startsWith('/')) location.href = cmd.url; break;
     }
     reportState();
   }

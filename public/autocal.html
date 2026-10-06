@@ -51,7 +51,7 @@ async function draw(cmd) {
 }
 
 const es = new EventSource('/api/events');
-es.addEventListener('cmd', (e) => { const cmd = JSON.parse(e.data); if (cmd.type === 'autocal') draw(cmd); else if (cmd.type === 'reload') location.reload(); });
+es.addEventListener('cmd', (e) => { const cmd = JSON.parse(e.data); if (cmd.type === 'autocal') draw(cmd); else if (cmd.type === 'reload') location.reload(); else if (cmd.type === 'goto' && typeof cmd.url === 'string' && cmd.url.startsWith('/')) location.href = cmd.url; });
 </script>
 </body>
 </html>
