@@ -15,7 +15,12 @@ The HY320's built-in camera sits next to the lens and sees the whole projected a
 ## Accuracy (studio test, 2026-10-06)
 - **Plane fit:** 0.67 camera px RMS.
 - **Dots check** (`verify-dots.mjs`): median 2 projector px, max 4.5.
-- **Synthetic print** (`synth-print.mjs`: the reference projected at a known place, then found): corners within **0.3–1.2 projector px**.
+- **Synthetic print** (`synth-print.mjs`: the reference projected at a known place, then found with `--no-edge-check`): corners within **0.3–1.2 projector px**.
+
+**Safety checks** (a failed check stops the run, and the old calibration stays):
+- At least 30 consistent matches.
+- The fitted outline must agree with the print's edges in the photo: the two clearest edges need a consistent brightness step at 93% or more of their length.
+- A per-pane correction is used only if it has 15 or more matches, and at most 3 cm shift and ±8% stretch.
 
 ## Running it
 - **Requirements:**

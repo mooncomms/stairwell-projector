@@ -14,7 +14,7 @@ import numpy as np, cv2
 
 ap = argparse.ArgumentParser()
 ap.add_argument('run'); ap.add_argument('photo'); ap.add_argument('reference')
-ap.add_argument('--panels'); ap.add_argument('--w', type=int, default=640); ap.add_argument('--h', type=int, default=480)
+ap.add_argument('--panels'); ap.add_argument('--no-edge-check', action='store_true'); ap.add_argument('--w', type=int, default=640); ap.add_argument('--h', type=int, default=480)
 a = ap.parse_args()
 
 raw = np.fromfile(a.photo, np.uint8).reshape(a.h, a.w, 2)
@@ -137,7 +137,7 @@ def edge_contrast(img, quad, d=5):
 _blur = cv2.GaussianBlur(cam, (5, 5), 0)
 EDGE = edge_contrast(_blur, camc)
 _clear = sorted(EDGE, reverse=True)[:2]
-if len(_clear) < 2 or min(_clear) < 0.93:
+if not a.no_edge_check and (len(_clear) < 2 or min(_clear) < 0.93):
     sys.exit(f'print found, but its outline doesn\'t match the photo (edge agreement {[round(v, 2) for v in EDGE]}); '
              'not using it. Try again with the room dim and the print evenly lit.')
 out = {'matches': n_pairs, 'inliers': n_inl, 'modelRmsPx': round(MODEL_RMS, 2), 'edges': [round(v, 2) for v in EDGE],
