@@ -50,7 +50,19 @@ console.log(`autocal: wall ${wall} → ${out}`);
 try { run('node', [path.join(here, 'capture.mjs'), '--out', out, ...rigArgs]); } finally { await back(); }
 run('node', [path.join(here, 'decode.mjs'), out]);
 const py = fs.existsSync(path.join(root, 'data/tools/venv/bin/python')) ? path.join(root, 'data/tools/venv/bin/python') : 'python3';
-run(py, [path.join(here, 'find_print.py'), out, path.join(out, 'white.yuv'), path.join(root, 'walls', wall, 'media', config.reference), '--panels', path.join(root, 'walls', wall, 'config.json')]);
+// Try each photo of the print; keep the one with the most consistent matches.
+const cap = JSON.parse(fs.readFileSync(path.join(out, 'capture.json'), 'utf8'));
+const photos = ['white', ...(cap.printExposures || []).map((e) => `print${e}`)];
+let best = null;
+for (const ph of photos) {
+  try { run(py, [path.join(here, 'find_print.py'), out, path.join(out, `${ph}.yuv`), path.join(root, 'walls', wall, 'media', config.reference), '--panels', path.join(root, 'walls', wall, 'config.json')]); }
+  catch { continue; }
+  const r = JSON.parse(fs.readFileSync(path.join(out, 'print.json'), 'utf8'));
+  if (!best || r.inliers > best.r.inliers) { best = { ph, r }; fs.copyFileSync(path.join(out, 'print.json'), path.join(out, 'print-best.json')); }
+}
+if (!best) fail('the print was not found in any photo');
+fs.copyFileSync(path.join(out, 'print-best.json'), path.join(out, 'print.json'));
+console.log(`best photo: ${best.ph} (${best.r.inliers} consistent matches; panes ${best.r.panes.map((p) => p.used ? p.inliers : '–').join(' / ')})`);
 
 const found = JSON.parse(fs.readFileSync(path.join(out, 'print.json'), 'utf8'));
 const current = (await (await fetch(`${base}/api/calibration`)).json()) || {};

@@ -29,8 +29,18 @@ for (const f of frames) {
   process.stdout.write(`\r${f.name.padEnd(5)} ${frames.indexOf(f) + 1}/${frames.length}`);
 }
 console.log(`\ncaptured in ${((Date.now() - t0) / 1000).toFixed(1)} s`);
+// Extra photos of the print under white light at brighter exposures: the pattern
+// exposure keeps stripes from burning out, but leaves a dark print too dim to match well.
+await rig.show({ kind: 'white' });
+const printExposures = [];
+for (const k of [3, 6]) {
+  const e = Math.round(+(args.exposure || 50) * k);
+  rig.adb('shell', `/data/local/tmp/camgrab /dev/video0 set 0x009a0902 ${e}`);
+  await rig.grab(`print${e}`, 12);
+  printExposures.push(e);
+}
 rig.close();
 await rig.show({ kind: 'black' });
 rig.pullAll(OUT);
-fs.writeFileSync(path.join(OUT, 'capture.json'), JSON.stringify({ camera: { w: 640, h: 480, format: 'YUYV' }, screen, bits: BITS, frames }, null, 2));
+fs.writeFileSync(path.join(OUT, 'capture.json'), JSON.stringify({ camera: { w: 640, h: 480, format: 'YUYV' }, screen, bits: BITS, frames, printExposures }, null, 2));
 console.log('saved to', OUT);

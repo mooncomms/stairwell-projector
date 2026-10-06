@@ -26,6 +26,29 @@ RH, RW = ref.shape
 cap = json.load(open(f'{a.run}/capture.json'))
 cmap = np.fromfile(f'{a.run}/map.bin', np.float32).reshape(a.h, a.w, 2)
 
+# Smooth model camera -> projector from every decoded pixel: a homography (the wall
+# plane) plus a quadratic correction for lens distortion. Used where the print is too
+# dark for the stripe patterns to decode.
+_vy, _vx = np.nonzero(~np.isnan(cmap[:, :, 0]))
+_step = max(1, len(_vx) // 20000)
+_cx, _cy = _vx[::_step].astype(np.float64), _vy[::_step].astype(np.float64)
+_pv = cmap[_vy[::_step], _vx[::_step]].astype(np.float64)
+_Hm, _ = cv2.findHomography(np.c_[_cx, _cy].astype(np.float32), _pv.astype(np.float32), cv2.RANSAC, 6.0)
+def _poly(x, y):
+    u, v = (x - a.w / 2) / a.w, (y - a.h / 2) / a.h
+    return np.c_[np.ones_like(u), u, v, u * u, u * v, v * v, u * u * u, u * u * v, u * v * v, v * v * v]
+_hp = cv2.perspectiveTransform(np.c_[_cx, _cy].reshape(-1, 1, 2).astype(np.float64), _Hm).reshape(-1, 2)
+_res = _pv - _hp
+_keep = np.hypot(_res[:, 0], _res[:, 1]) < 25          # ignore other surfaces / bad decodes
+_cfx, *_ = np.linalg.lstsq(_poly(_cx[_keep], _cy[_keep]), _res[_keep, 0], rcond=None)
+_cfy, *_ = np.linalg.lstsq(_poly(_cx[_keep], _cy[_keep]), _res[_keep, 1], rcond=None)
+def model(x, y):
+    hp = cv2.perspectiveTransform(np.float64([[[x, y]]]), _Hm).reshape(2)
+    P = _poly(np.float64([x]), np.float64([y]))
+    return hp[0] + (P @ _cfx)[0], hp[1] + (P @ _cfy)[0]
+_r2 = _res[_keep] - np.c_[_poly(_cx[_keep], _cy[_keep]) @ _cfx, _poly(_cx[_keep], _cy[_keep]) @ _cfy]
+MODEL_RMS = float(np.sqrt((_r2 ** 2).sum(1).mean()))
+
 def cam2proj(pts):
     out = []
     for x, y in pts:
@@ -35,7 +58,7 @@ def cam2proj(pts):
         gy, gx = np.mgrid[y0:y1, x0:x1]
         ok = ~np.isnan(win[:, 0])
         if ok.sum() < 6:
-            out.append((np.nan, np.nan)); continue
+            out.append(model(x, y)); continue
         # Local affine fit camera -> projector over the window, evaluated at (x, y).
         A = np.c_[gx.ravel()[ok], gy.ravel()[ok], np.ones(ok.sum())]
         cx, *_ = np.linalg.lstsq(A, win[ok, 0], rcond=None)
@@ -87,7 +110,7 @@ quad = proj.reshape(-1, 1, 2)
 if not cv2.isContourConvex(np.float32(quad)) or cv2.contourArea(np.float32(quad)) < 0.02 * cap['screen']['w'] * cap['screen']['h']:
     sys.exit('print found, but the fit is implausible (folded or tiny); not using it')
 camc = cv2.perspectiveTransform(proj.reshape(-1, 1, 2), H_pc).reshape(-1, 2)
-out = {'matches': n_pairs, 'inliers': n_inl,
+out = {'matches': n_pairs, 'inliers': n_inl, 'modelRmsPx': round(MODEL_RMS, 2),
        'corners': [{'x': round(float(x), 1), 'y': round(float(y), 1)} for x, y in proj],
        'cameraCorners': [[round(float(x), 1), round(float(y), 1)] for x, y in camc]}
 
@@ -101,7 +124,7 @@ if a.panels:
     for p in cfg.get('panels', []):
         rect = (p['x'] * kx, p['y'] * ky, (p['x'] + p['w']) * kx, (p['y'] + p['h']) * ky)
         Hp, n, inl = match(rect)
-        if Hp is None or inl < 40:          # too few features (sky, plain road): leave as is
+        if Hp is None or inl < 15:          # too few features (sky, plain road): leave as is
             shifts.append([0, 0]); scales.append([1, 1]); info.append({'inliers': inl, 'used': False}); continue
         # Where the pane's corners land with its own fit, mapped back into the whole-print
         # fit's reference coordinates: that's how the pane's picture is displaced.
@@ -114,8 +137,12 @@ if a.panels:
         sy = (back[3, 1] - back[0, 1] + back[2, 1] - back[1, 1]) / 2 / p['h']
         # The engine samples content at ctr + (uv - ctr - shift) / scale; the print shows
         # the pane displaced by (b - c) and scaled by s, so use the same shift and scale.
-        shifts.append([round(float(bx - cx), 2), round(float(by - cy), 2)])
-        scales.append([round(float(sx), 3), round(float(sy), 3)])
+        sh, sc = [float(bx - cx), float(by - cy)], [float(sx), float(sy)]
+        if max(abs(sh[0]), abs(sh[1])) > 5 or not all(0.85 < v < 1.15 for v in sc):
+            # A canvas can't be that far off; treat it as a bad fit.
+            shifts.append([0, 0]); scales.append([1, 1]); info.append({'inliers': inl, 'used': False, 'rejected': [sh, sc]}); continue
+        shifts.append([round(sh[0], 2), round(sh[1], 2)])
+        scales.append([round(sc[0], 3), round(sc[1], 3)])
         info.append({'inliers': inl, 'used': True})
     out.update(panelShift=shifts, panelScale=scales, panes=info)
 
