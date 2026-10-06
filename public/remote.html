@@ -85,6 +85,10 @@
     <button id="calToggle" data-cmd='{"type":"calibrate"}'>Calibrate</button>
     <button id="pattern" data-cmd='{"type":"pattern"}'>Pattern</button>
   </div>
+  <div class="row" id="autoRow">
+    <button id="autocal">Auto-calibrate</button>
+  </div>
+  <div class="status" id="autoStatus"></div>
   <div id="calib">
     <div class="row">
       <button data-cmd='{"type":"select","dir":-1}'>◂ Point</button>
@@ -195,6 +199,13 @@
       });
     }
 
+    // Auto-calibrate: the projector's camera finds the print (takes ~1 minute).
+    $('autocal').addEventListener('click', async () => {
+      if (!confirm('Auto-calibrate? The wall will show patterns for about a minute. Keep the room dim.')) return;
+      const r = await fetch('/api/autocal-run', { method: 'POST' });
+      if (!r.ok) $('autoStatus').textContent = (await r.json()).error || 'could not start';
+    });
+
     // Window frame: auto (scene default), none, or a named frame.
     $('frameSel').addEventListener('change', (e) => send({ type: 'frame', v: e.target.value }));
 
@@ -228,6 +239,7 @@
       $('blackout').classList.toggle('warn', !!s.blackout);
       $('spotRow').style.display = s.spotlight == null ? 'none' : '';
       $('frameRow').style.display = s.frames ? '' : 'none';
+      $('autoRow').style.display = s.autocal ? '' : 'none';
       if (s.frames && document.activeElement !== $('frameSel')) {
         const opts = [['auto', 'Auto (scene default)'], ['none', 'None'], ...Object.entries(s.frames)];
         $('frameSel').innerHTML = opts.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
@@ -262,6 +274,12 @@
 
     const es = new EventSource('/api/events');
     es.addEventListener('state', (e) => { state = JSON.parse(e.data); render(); });
+    es.addEventListener('autocal-status', (e) => {
+      const s = JSON.parse(e.data);
+      const label = { running: '⏳ ', done: '✅ ', failed: '⚠️ ' }[s.state] || '';
+      $('autoStatus').textContent = label + s.line;
+      $('autocal').disabled = s.state === 'running';
+    });
     es.onerror = () => { $('status').textContent = 'reconnecting…'; };
     render();
   </script>

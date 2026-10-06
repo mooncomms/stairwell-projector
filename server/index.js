@@ -28,6 +28,7 @@ const MEDIA_EXT = /\.(png|jpe?g|webp|gif|mp4|webm|mov)$/i;
 const clients = new Set();   // open SSE responses
 let lastState = null;        // latest state reported by the projector page
 let autocalAck = null;       // last pattern the autocal page put on screen
+let autocalJob = null, autocalStatus = null;   // remote-started autocal run
 
 function broadcast(event, data) {
   const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -191,6 +192,28 @@ const routes = {
     }, action === 'shutdown' ? 2500 : 1500);   // give the projector command time to go out
   },
   // Automatic calibration: the pattern page acknowledges each drawn pattern.
+  // Automatic calibration, started from the remote: runs tools/autocal/run.mjs --apply
+  // and streams its progress to the remote as 'autocal-status' events.
+  'POST /api/autocal-run': async (req, res) => {
+    if (autocalJob) return json(res, 409, { error: 'already running' });
+    autocalJob = spawn(process.execPath, [path.join(ROOT, 'tools', 'autocal', 'run.mjs'), '--apply', '--port', String(PORT)], { cwd: ROOT });
+    const status = (state, line) => { autocalStatus = { state, line, t: Date.now() }; broadcast('autocal-status', autocalStatus); };
+    status('running', 'starting…');
+    let buf = '';
+    const onData = (d) => {
+      buf += d.toString().replace(/\r/g, '\n');
+      const lines = buf.split('\n'); buf = lines.pop();
+      for (const l of lines.map((x) => x.trim()).filter(Boolean)) status('running', l.slice(0, 200));
+    };
+    autocalJob.stdout.on('data', onData); autocalJob.stderr.on('data', onData);
+    autocalJob.on('close', (code) => {
+      const last = autocalStatus?.line || '';
+      status(code === 0 ? 'done' : 'failed', code === 0 ? 'calibrated' : last);
+      autocalJob = null;
+      if (code === 0) broadcast('cmd', { type: 'reload' });
+    });
+    json(res, 200, { ok: true });
+  },
   'POST /api/autocal-ack': async (req, res) => { autocalAck = await readBody(req, 1e3); json(res, 200, { ok: true }); },
   'GET /api/autocal-ack': async (req, res) => json(res, 200, autocalAck),
   'POST /api/state': async (req, res) => {
@@ -202,6 +225,7 @@ const routes = {
     res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
     res.write('retry: 1000\n: hi\n\n');   // reconnect quickly after a server restart
     if (lastState) res.write(`event: state\ndata: ${JSON.stringify(lastState)}\n\n`);
+    if (autocalStatus) res.write(`event: autocal-status\ndata: ${JSON.stringify(autocalStatus)}\n\n`);
     clients.add(res);
     req.on('close', () => clients.delete(res));
   },
