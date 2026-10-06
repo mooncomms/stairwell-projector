@@ -97,18 +97,39 @@ export function makeSpotlight(p, W, H, kx, ky, cfg, moonsky) {
       // 3. The beam: a cone from a narrow source behind the buildings to the image,
       //    brighter towards the clouds, with a hint of haze shimmer.
       const ang = Math.atan2(ty - from.y, tx - from.x), nx = -Math.sin(ang), ny = Math.cos(ang);
-      const w0 = 1.2 * k, w1 = to.r * 0.95;
+      const w0 = 1.2 * k;
+      // The image's ring as it lands (same warp as the drawn image: turned to face the
+      // beam, squashed, narrower far edge), so the cone's sides can be tangent to it.
+      const R = to.r, ca = Math.cos(tilt), sa = Math.sin(tilt), ring = cfg.ring ?? 0.8;
+      const outline = Array.from({ length: 72 }, (_, i) => {
+        const th = (i / 72) * Math.PI * 2;
+        const u = 0.5 + 0.5 * ring * Math.cos(th), v = 0.5 + 0.5 * ring * Math.sin(th);
+        const lx = (u - 0.5) * 2 * R * (keystone + (1 - keystone) * v), ly = (v - 0.5) * 2 * R * squash;
+        return [tx + lx * ca - ly * sa, ty + lx * sa + ly * ca];
+      });
+      // Tangent points: the outline points at the widest angles either side of the beam,
+      // seen from the source.
+      const rel = outline.map(([x, y]) => { let d = Math.atan2(y - from.y, x - from.x) - ang; d = Math.atan2(Math.sin(d), Math.cos(d)); return d; });
+      let iA = 0, iB = 0;
+      rel.forEach((d, i) => { if (d > rel[iA]) iA = i; if (d < rel[iB]) iB = i; });
+      // Near arc between the tangent points (the side facing the source) closes the cone.
+      const near = (i) => Math.hypot(outline[i][0] - from.x, outline[i][1] - from.y);
+      const walk = (a, b, dir) => { const pts = []; for (let i = a; ; i = (i + dir + 72) % 72) { pts.push(i); if (i === b) break; } return pts; };
+      const arc1 = walk(iA, iB, 1), arc2 = walk(iA, iB, -1);
+      const avg = (arc) => arc.reduce((s2, i) => s2 + near(i), 0) / arc.length;
+      const arc = avg(arc1) < avg(arc2) ? arc1 : arc2;
       const shimmer = 0.85 + 0.15 * Math.sin(t * 0.9) * Math.sin(t * 0.37);
       const grd = lc.createLinearGradient(from.x, from.y, tx, ty);
       grd.addColorStop(0, `rgba(${BEAM},${0.1 * shimmer})`); grd.addColorStop(0.6, `rgba(${BEAM},${0.22 * shimmer})`); grd.addColorStop(1, `rgba(${BEAM},${0.35 * shimmer})`);
       lc.globalCompositeOperation = 'lighter';
       lc.fillStyle = grd;
-      lc.filter = 'blur(5px)';
+      lc.filter = 'blur(3px)';
       lc.beginPath();
-      lc.moveTo(from.x + nx * w0, from.y + ny * w0);
-      lc.lineTo(tx + nx * w1, ty + ny * w1);
-      lc.lineTo(tx - nx * w1, ty - ny * w1);
-      lc.lineTo(from.x - nx * w0, from.y - ny * w0);
+      // Source edges on the side matching each tangent point.
+      const side = (i) => Math.sign((outline[i][0] - from.x) * nx + (outline[i][1] - from.y) * ny) || 1;
+      lc.moveTo(from.x + nx * w0 * side(iA), from.y + ny * w0 * side(iA));
+      arc.forEach((i) => lc.lineTo(outline[i][0], outline[i][1]));
+      lc.lineTo(from.x + nx * w0 * side(iB), from.y + ny * w0 * side(iB));
       lc.closePath(); lc.fill();
       lc.filter = 'none';
 
