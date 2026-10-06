@@ -5,6 +5,7 @@
 #  - installs the server as a systemd *user* service that starts at boot
 #  - autostarts the full-screen kiosk browser when the desktop session logs in
 #  - opens port 8080 on the local network if ufw is active (phone remote, laptop)
+#  - projector control over USB: adb, USB access, and a service that switches it to HDMI
 set -euo pipefail
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
@@ -69,6 +70,18 @@ ResultActive=yes
 EOF
 fi
 echo ok
+
+say "Projector control over USB (boot to HDMI, off with Shut down)…"
+command -v adb >/dev/null || sudo apt install -y adb
+# Let the desktop user talk to the projector's USB debugging port (Allwinner, 1f3a).
+echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="1f3a", MODE="0666", TAG+="uaccess"' | sudo tee /etc/udev/rules.d/51-stairwall-projector.rules >/dev/null
+sudo udevadm control --reload-rules && sudo udevadm trigger
+chmod +x "$REPO/deploy/projector.sh"
+sed -e "s#^ExecStart=.*#ExecStart=$REPO/deploy/projector.sh watch#" \
+    "$REPO/deploy/stairwall-projector.service" > ~/.config/systemd/user/stairwall-projector.service
+systemctl --user daemon-reload
+systemctl --user enable --now stairwall-projector
+echo "ok. First time only: when the projector asks 'Allow USB debugging?', tick 'Always allow' and accept."
 
 if command -v ufw >/dev/null && sudo ufw status | grep -q "Status: active"; then
   say "Opening port 8080 to the local network…"

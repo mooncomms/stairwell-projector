@@ -132,6 +132,13 @@ Any small Linux PC that can run Chromium with GPU acceleration works. An Intel G
   3. On the phone, install any Wake-on-LAN app and give it the box's MAC address (`ip link` shows it).
 - **Waking with a remote control:** a cheap 2.4 GHz "air mouse" remote with a USB dongle acts as a keyboard. Its arrow keys change scenes, and its power button can wake the box from sleep once "USB wake" is enabled in the BIOS.
 
+**Projector control over USB** (Magcubic HY320 and similar Allwinner Android projectors):
+- Connect the projector's USB port to the box with a **USB-A to USB-A data cable**, and turn on USB debugging in the projector's developer options.
+- `install.sh` installs `adb`, a USB access rule, and a service that **switches the projector to HDMI each time it boots**. It does this once per projector boot, so its menus stay usable afterwards.
+- The first time, the projector asks "Allow USB debugging?": tick **Always allow** and accept.
+- **Sleep** and **Shut down** on the phone remote also switch the projector off. The projector can't be powered on over USB, so use its remote, or a smart plug if it powers up when plugged in.
+- By hand: `deploy/projector.sh status | hdmi | off`.
+
 **Settings** (each wall's `config.json`):
 - `playlist` and `sceneSeconds` (0 = never auto-advance)
 - `crossfadeSeconds`

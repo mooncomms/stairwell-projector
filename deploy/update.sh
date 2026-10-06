@@ -6,6 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 git pull --ff-only
 systemctl --user restart stairwall
+systemctl --user try-restart stairwall-projector 2>/dev/null || true
 # Wait for the server, then tell the open page to reload itself.
 for _ in $(seq 20); do curl -sf http://localhost:8080/api/config >/dev/null && break; sleep 0.5; done
 sleep 3   # the page's event stream reconnects within ~1 s of the restart

@@ -176,12 +176,18 @@ const routes = {
     if (!verb) return json(res, 400, { error: 'action must be sleep or shutdown' });
     json(res, 200, { ok: true, action });
     if (action === 'shutdown') broadcast('cmd', { type: 'blackout', on: true });   // fade out first
+    // Switch the projector off too (over USB; harmless if it isn't connected).
+    if (process.env.STAIRWALL_POWER_DRY) console.log('[dry run] deploy/projector.sh off');
+    else {
+      const proj = spawn(path.join(ROOT, 'deploy', 'projector.sh'), ['off'], { stdio: 'ignore' });
+      proj.on('error', (e) => console.error('projector:', e.message));
+    }
     setTimeout(() => {
       if (process.env.STAIRWALL_POWER_DRY) return console.log(`[dry run] systemctl ${verb}`);
       const child = spawn('systemctl', [verb], { stdio: 'ignore', detached: true });
       child.on('error', (e) => console.error('power:', e.message));
       child.unref();
-    }, action === 'shutdown' ? 2500 : 300);
+    }, action === 'shutdown' ? 2500 : 1500);   // give the projector command time to go out
   },
   'POST /api/state': async (req, res) => {
     lastState = await readBody(req);

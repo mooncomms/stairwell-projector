@@ -1,0 +1,12 @@
+# systemd *user* service: switches the projector to HDMI each time it boots (over USB).
+# Installed by deploy/install.sh; see deploy/projector.sh.
+[Unit]
+Description=stairwall projector control (boot to HDMI)
+
+[Service]
+ExecStart=%h/stairwall/deploy/projector.sh watch
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=default.target
