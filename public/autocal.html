@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>stairwall autocal</title>
+  <style>html, body { margin: 0; height: 100%; background: #000; overflow: hidden; cursor: none; } canvas { display: block; }</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// Full-screen structured-light patterns for automatic calibration, drawn in projector
+// pixels on command (POST /api/cmd {type:'autocal', seq, kind, …}), acknowledged with
+// POST /api/autocal-ack {seq} once the frame is on screen.
+//   kind: 'white' | 'black' | 'gray' (axis 'x'|'y', bit 0 = most significant, inv)
+//         | 'image' (url, optional tf) | 'points' (pts: [[x, y], …], r)
+const c = document.getElementById('c'), x = c.getContext('2d');
+const dpr = window.devicePixelRatio || 1;
+function size() { c.width = Math.round(innerWidth * dpr); c.height = Math.round(innerHeight * dpr); c.style.width = innerWidth + 'px'; c.style.height = innerHeight + 'px'; }
+size(); addEventListener('resize', size);
+
+const BITS = 11;   // 2^11 = 2048 >= 1920
+async function draw(cmd) {
+  const W = c.width, H = c.height;
+  x.fillStyle = '#000'; x.fillRect(0, 0, W, H);
+  if (cmd.kind === 'white') { x.fillStyle = '#fff'; x.fillRect(0, 0, W, H); }
+  else if (cmd.kind === 'gray') {
+    const n = cmd.axis === 'x' ? W : H, shift = BITS - 1 - cmd.bit;
+    x.fillStyle = '#fff';
+    let start = -1;
+    for (let i = 0; i <= n; i++) {
+      const on = i < n && ((((i ^ (i >> 1)) >> shift) & 1) ^ (cmd.inv ? 1 : 0));
+      if (on && start < 0) start = i;
+      if (!on && start >= 0) {
+        if (cmd.axis === 'x') x.fillRect(start, 0, i - start, H); else x.fillRect(0, start, W, i - start);
+        start = -1;
+      }
+    }
+  } else if (cmd.kind === 'image') {
+    // Fitted to the screen, or placed with a transform (tf = [a, b, c, d, e, f] in
+    // projector px, applied to the image's unit square).
+    const img = new Image(); img.src = cmd.url; await img.decode();
+    if (cmd.tf) { x.save(); x.setTransform(...cmd.tf); x.drawImage(img, 0, 0, 1, 1); x.restore(); }
+    else x.drawImage(img, 0, 0, W, H);
+  } else if (cmd.kind === 'points') {
+    x.fillStyle = '#fff';
+    for (const [px, py] of cmd.pts) { x.beginPath(); x.arc(px, py, cmd.r || 6, 0, Math.PI * 2); x.fill(); }
+  }
+  // Two animation frames: the drawing is really on screen before we acknowledge.
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+  fetch('/api/autocal-ack', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ seq: cmd.seq, w: W, h: H }) });
+}
+
+const es = new EventSource('/api/events');
+es.addEventListener('cmd', (e) => { const cmd = JSON.parse(e.data); if (cmd.type === 'autocal') draw(cmd); else if (cmd.type === 'reload') location.reload(); });
+</script>
+</body>
+</html>

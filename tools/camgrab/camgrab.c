@@ -3,6 +3,11 @@
 //
 //   camgrab /dev/video0 list
 //   camgrab /dev/video0 grab out.jpg [width height] [skip]
+//   camgrab /dev/video0 ctrls                      list controls (exposure, gain…)
+//   camgrab /dev/video0 set ID VALUE               set a control
+//   camgrab /dev/video0 serve W H                  keep streaming; read stdin lines
+//       "grab PATH SKIP" -> drop SKIP frames, save the next one, print "ok PATH"
+//       "quit"           -> stop
 //
 // Prefers MJPEG (written as-is: a .jpg); falls back to YUYV (written raw, with a
 // .txt sidecar giving the size, for conversion on the host).
@@ -14,6 +19,7 @@
 #include <string.h>
 #include <sys/ioctl.h>
 #include <sys/mman.h>
+#include <sys/select.h>
 #include <unistd.h>
 
 static int xioctl(int fd, unsigned long req, void *arg) {
@@ -43,11 +49,37 @@ static void list(int fd) {
   }
 }
 
+static void ctrls(int fd) {
+  struct v4l2_queryctrl q = {0};
+  q.id = V4L2_CTRL_FLAG_NEXT_CTRL;
+  while (xioctl(fd, VIDIOC_QUERYCTRL, &q) == 0) {
+    if (!(q.flags & V4L2_CTRL_FLAG_DISABLED) && q.type != V4L2_CTRL_TYPE_CTRL_CLASS) {
+      struct v4l2_control c = { .id = q.id };
+      xioctl(fd, VIDIOC_G_CTRL, &c);
+      printf("0x%08x %-32s min %d max %d step %d default %d now %d\n", q.id, q.name, q.minimum, q.maximum, q.step, q.default_value, c.value);
+    }
+    q.id |= V4L2_CTRL_FLAG_NEXT_CTRL;
+  }
+}
+
 int main(int argc, char **argv) {
   if (argc < 3) { fprintf(stderr, "usage: camgrab DEV list | grab OUT [W H] [SKIP]\n"); return 2; }
   int fd = open(argv[1], O_RDWR);
   if (fd < 0) { perror("open"); return 1; }
   if (!strcmp(argv[2], "list")) { list(fd); return 0; }
+  if (!strcmp(argv[2], "ctrls")) { ctrls(fd); return 0; }
+  if (!strcmp(argv[2], "set") && argc > 4) {
+    struct v4l2_control c = { .id = (unsigned)strtoul(argv[3], NULL, 0), .value = atoi(argv[4]) };
+    if (xioctl(fd, VIDIOC_S_CTRL, &c) < 0) { perror("S_CTRL"); return 1; }
+    return 0;
+  }
+  int serve = !strcmp(argv[2], "serve");
+  if (serve) {
+    // Reuse the grab path below, but loop on commands from stdin.
+    static char *fake[] = {0, 0, "grab", "", 0, 0, 0};
+    fake[1] = argv[1]; fake[4] = argc > 3 ? argv[3] : "640"; fake[5] = argc > 4 ? argv[4] : "480"; fake[6] = "0";
+    argv = fake; argc = 7;
+  }
   if (strcmp(argv[2], "grab") || argc < 4) { fprintf(stderr, "bad args\n"); return 2; }
   const char *out = argv[3];
   unsigned W = argc > 5 ? atoi(argv[4]) : 1280, H = argc > 5 ? atoi(argv[5]) : 720;
@@ -80,6 +112,35 @@ int main(int argc, char **argv) {
   }
   enum v4l2_buf_type t = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   if (xioctl(fd, VIDIOC_STREAMON, &t) < 0) { perror("STREAMON"); return 1; }
+
+  if (serve) {
+    setvbuf(stdout, NULL, _IOLBF, 0);
+    printf("ready %ux%u\n", f.fmt.pix.width, f.fmt.pix.height);
+    char line[600], path[512];
+    int want = -1, n = 0;
+    for (;;) {
+      // Keep draining frames; when a grab is pending, count down and save.
+      fd_set rs; FD_ZERO(&rs); FD_SET(0, &rs);
+      struct timeval tv = {0, 0};
+      if (want < 0 && select(1, &rs, NULL, NULL, &tv) > 0) {
+        if (!fgets(line, sizeof line, stdin) || !strncmp(line, "quit", 4)) break;
+        int sk = 3;
+        if (sscanf(line, "grab %511s %d", path, &sk) >= 1) { want = sk; n = 0; }
+      }
+      struct v4l2_buffer b = {0};
+      b.type = t; b.memory = V4L2_MEMORY_MMAP;
+      if (xioctl(fd, VIDIOC_DQBUF, &b) < 0) { perror("DQBUF"); return 1; }
+      if (want >= 0 && n++ >= want) {
+        FILE *o = fopen(path, "wb");
+        if (o) { fwrite(ptr[b.index], 1, b.bytesused, o); fclose(o); printf("ok %s\n", path); }
+        else printf("err %s\n", path);
+        want = -1;
+      }
+      if (xioctl(fd, VIDIOC_QBUF, &b) < 0) { perror("QBUF"); return 1; }
+    }
+    xioctl(fd, VIDIOC_STREAMOFF, &t);
+    return 0;
+  }
 
   // Let exposure settle, then keep the last frame.
   for (int n = 0; n <= skip; n++) {

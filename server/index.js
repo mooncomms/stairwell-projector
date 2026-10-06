@@ -27,6 +27,7 @@ const MEDIA_EXT = /\.(png|jpe?g|webp|gif|mp4|webm|mov)$/i;
 
 const clients = new Set();   // open SSE responses
 let lastState = null;        // latest state reported by the projector page
+let autocalAck = null;       // last pattern the autocal page put on screen
 
 function broadcast(event, data) {
   const msg = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
@@ -189,6 +190,9 @@ const routes = {
       child.unref();
     }, action === 'shutdown' ? 2500 : 1500);   // give the projector command time to go out
   },
+  // Automatic calibration: the pattern page acknowledges each drawn pattern.
+  'POST /api/autocal-ack': async (req, res) => { autocalAck = await readBody(req, 1e3); json(res, 200, { ok: true }); },
+  'GET /api/autocal-ack': async (req, res) => json(res, 200, autocalAck),
   'POST /api/state': async (req, res) => {
     lastState = await readBody(req);
     broadcast('state', lastState);
