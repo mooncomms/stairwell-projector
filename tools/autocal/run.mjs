@@ -50,20 +50,32 @@ console.log(`autocal: wall ${wall} → ${out}`);
 try { run(process.execPath, [path.join(here, 'capture.mjs'), '--out', out, ...rigArgs]); } finally { await back(); }
 run(process.execPath, [path.join(here, 'decode.mjs'), out]);
 const py = fs.existsSync(path.join(root, 'data/tools/venv/bin/python')) ? path.join(root, 'data/tools/venv/bin/python') : 'python3';
-// Try each photo of the print; keep the one with the most consistent matches.
+// Each photo of the print is fitted on its own. The corners come from the pattern-
+// exposure photo ('white'), which has proven reliable; the brighter photos only supply
+// per-pane measurements, and only when their whole-print fit agrees with it (a brighter
+// photo can produce more matches yet a wrong fit).
 const cap = JSON.parse(fs.readFileSync(path.join(out, 'capture.json'), 'utf8'));
 const photos = ['white', ...(cap.printExposures || []).map((e) => `print${e}`)];
-let best = null;
+const results = {};
 for (const ph of photos) {
   try { run(py, [path.join(here, 'find_print.py'), out, path.join(out, `${ph}.yuv`), path.join(root, 'walls', wall, 'media', config.reference), '--panels', path.join(root, 'walls', wall, 'config.json')]); }
   catch { continue; }
-  const r = JSON.parse(fs.readFileSync(path.join(out, 'print.json'), 'utf8'));
-  if (!best || r.inliers > best.r.inliers) { best = { ph, r }; fs.copyFileSync(path.join(out, 'print.json'), path.join(out, 'print-best.json')); }
+  results[ph] = JSON.parse(fs.readFileSync(path.join(out, 'print.json'), 'utf8'));
 }
-if (!best) fail('the print was not found in any photo');
-fs.copyFileSync(path.join(out, 'print-best.json'), path.join(out, 'print.json'));
-console.log(`best photo: ${best.ph} (${best.r.inliers} consistent matches; panes ${best.r.panes.map((p) => p.used ? p.inliers : '–').join(' / ')})`);
-
+const main = results.white || Object.values(results).sort((a, b) => b.inliers - a.inliers)[0];
+if (!main) fail('the print was not found in any photo');
+const agrees = (r) => r.corners.every((c, i) => Math.hypot(c.x - main.corners[i].x, c.y - main.corners[i].y) < 15);
+const merged = { ...main, panelShift: [...(main.panelShift || [])], panelScale: [...(main.panelScale || [])], panes: [...(main.panes || [])] };
+for (const [ph, r] of Object.entries(results)) {
+  if (r === main || !agrees(r) || !r.panes) { if (r !== main) console.log(`photo ${ph}: ${agrees(r) ? 'no panes' : 'disagrees with the main fit, ignored'}`); continue; }
+  r.panes.forEach((p, i) => {
+    if (p.used && (!merged.panes[i]?.used || p.inliers > merged.panes[i].inliers)) {
+      merged.panes[i] = { ...p, photo: ph }; merged.panelShift[i] = r.panelShift[i]; merged.panelScale[i] = r.panelScale[i];
+    }
+  });
+}
+fs.writeFileSync(path.join(out, 'print.json'), JSON.stringify(merged, null, 2));
+console.log(`corners from: ${results.white ? 'white' : 'best photo'} (${main.inliers} matches); panes ${merged.panes.map((p) => (p.used ? `${p.inliers}${p.photo ? '@' + p.photo : ''}` : '–')).join(' / ')}`);
 const found = JSON.parse(fs.readFileSync(path.join(out, 'print.json'), 'utf8'));
 const current = (await (await fetch(`${base}/api/calibration`)).json()) || {};
 const next = { ...current, corners: found.corners, edges: [[], [], [], []] };

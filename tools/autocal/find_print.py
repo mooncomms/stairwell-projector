@@ -110,7 +110,37 @@ quad = proj.reshape(-1, 1, 2)
 if not cv2.isContourConvex(np.float32(quad)) or cv2.contourArea(np.float32(quad)) < 0.02 * cap['screen']['w'] * cap['screen']['h']:
     sys.exit('print found, but the fit is implausible (folded or tiny); not using it')
 camc = cv2.perspectiveTransform(proj.reshape(-1, 1, 2), H_pc).reshape(-1, 2)
-out = {'matches': n_pairs, 'inliers': n_inl, 'modelRmsPx': round(MODEL_RMS, 2),
+
+# Check the outline against the photo itself: under white light the print is darker than
+# the wall around it, so along each visible edge the brightness should step up going
+# outwards (or consistently down). A wrong fit (a corner pulled off) cuts across print
+# and wall instead.
+def edge_contrast(img, quad, d=5):
+    ctr = quad.mean(0)
+    scores = []
+    for i in range(4):
+        p0, p1 = quad[i], quad[(i + 1) % 4]
+        n = np.array([p1[1] - p0[1], p0[0] - p1[0]], float); n /= (np.hypot(*n) or 1)
+        if np.dot((p0 + p1) / 2 - ctr, n) < 0: n = -n                     # point outwards
+        ins, outs = [], []
+        for t in np.linspace(0.1, 0.9, 40):
+            q = p0 + (p1 - p0) * t
+            a, b = q - n * d, q + n * d
+            if all(0 <= v[0] < a_w and 0 <= v[1] < a_h for v in (a, b) for a_w, a_h in [(img.shape[1], img.shape[0])]):
+                ins.append(img[int(a[1]), int(a[0])]); outs.append(img[int(b[1]), int(b[0])])
+        if len(ins) >= 12:                                                  # edge visible enough
+            ins, outs = np.float32(ins), np.float32(outs)
+            # Share of points with a consistent step across the edge (up for a print lit
+            # on a lighter wall; down when the "print" is itself projected light).
+            scores.append(float(max(np.mean(outs > ins + 6), np.mean(ins > outs + 6))))
+    return scores
+_blur = cv2.GaussianBlur(cam, (5, 5), 0)
+EDGE = edge_contrast(_blur, camc)
+_clear = sorted(EDGE, reverse=True)[:2]
+if len(_clear) < 2 or min(_clear) < 0.93:
+    sys.exit(f'print found, but its outline doesn\'t match the photo (edge agreement {[round(v, 2) for v in EDGE]}); '
+             'not using it. Try again with the room dim and the print evenly lit.')
+out = {'matches': n_pairs, 'inliers': n_inl, 'modelRmsPx': round(MODEL_RMS, 2), 'edges': [round(v, 2) for v in EDGE],
        'corners': [{'x': round(float(x), 1), 'y': round(float(y), 1)} for x, y in proj],
        'cameraCorners': [[round(float(x), 1), round(float(y), 1)] for x, y in camc]}
 
@@ -138,7 +168,7 @@ if a.panels:
         # The engine samples content at ctr + (uv - ctr - shift) / scale; the print shows
         # the pane displaced by (b - c) and scaled by s, so use the same shift and scale.
         sh, sc = [float(bx - cx), float(by - cy)], [float(sx), float(sy)]
-        if max(abs(sh[0]), abs(sh[1])) > 5 or not all(0.85 < v < 1.15 for v in sc):
+        if max(abs(sh[0]), abs(sh[1])) > 3 or not all(0.92 < v < 1.08 for v in sc):
             # A canvas can't be that far off; treat it as a bad fit.
             shifts.append([0, 0]); scales.append([1, 1]); info.append({'inliers': inl, 'used': False, 'rejected': [sh, sc]}); continue
         shifts.append([round(sh[0], 2), round(sh[1], 2)])
