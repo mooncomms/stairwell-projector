@@ -206,8 +206,14 @@ const routes = {
       for (const l of lines.map((x) => x.trim()).filter(Boolean)) status('running', l.slice(0, 200));
     };
     autocalJob.stdout.on('data', onData); autocalJob.stderr.on('data', onData);
+    const lines = [];
+    autocalJob.stdout.on('data', (d) => lines.push(...d.toString().split('\n')));
+    autocalJob.stderr.on('data', (d) => lines.push(...d.toString().split('\n')));
     autocalJob.on('close', (code) => {
-      const last = autocalStatus?.line || '';
+      // The most telling line: an autocal message, else an error, else the last line.
+      const pick = (re) => [...lines].reverse().map((l) => l.trim()).find((l) => re.test(l));
+      const last = pick(/^autocal:/) || pick(/Error|error:/) || autocalStatus?.line || '';
+      if (code !== 0) console.error('autocal failed:\n' + lines.slice(-30).join('\n'));
       status(code === 0 ? 'done' : 'failed', code === 0 ? 'calibrated' : last);
       autocalJob = null;
       if (code === 0) broadcast('cmd', { type: 'reload' });

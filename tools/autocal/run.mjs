@@ -47,8 +47,8 @@ await send({ type: 'goto', url: '/autocal.html' });
 await new Promise((r) => setTimeout(r, 4000));
 const back = () => send({ type: 'goto', url: '/' });
 console.log(`autocal: wall ${wall} → ${out}`);
-try { run('node', [path.join(here, 'capture.mjs'), '--out', out, ...rigArgs]); } finally { await back(); }
-run('node', [path.join(here, 'decode.mjs'), out]);
+try { run(process.execPath, [path.join(here, 'capture.mjs'), '--out', out, ...rigArgs]); } finally { await back(); }
+run(process.execPath, [path.join(here, 'decode.mjs'), out]);
 const py = fs.existsSync(path.join(root, 'data/tools/venv/bin/python')) ? path.join(root, 'data/tools/venv/bin/python') : 'python3';
 // Try each photo of the print; keep the one with the most consistent matches.
 const cap = JSON.parse(fs.readFileSync(path.join(out, 'capture.json'), 'utf8'));
