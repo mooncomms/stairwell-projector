@@ -212,7 +212,7 @@ const routes = {
     autocalJob.on('close', (code) => {
       // The most telling line: an autocal message, else an error, else the last line.
       const pick = (re) => [...lines].reverse().map((l) => l.trim()).find((l) => re.test(l));
-      const last = pick(/^autocal:/) || pick(/Error|error:/) || autocalStatus?.line || '';
+      const last = pick(/^autocal: (?!wall )/) || pick(/print (not )?found|failed|too large|broken pipe|error/i) || autocalStatus?.line || '';
       if (code !== 0) console.error('autocal failed:\n' + lines.slice(-30).join('\n'));
       status(code === 0 ? 'done' : 'failed', code === 0 ? 'calibrated' : last);
       autocalJob = null;

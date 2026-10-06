@@ -47,7 +47,18 @@ await send({ type: 'goto', url: '/autocal.html' });
 await new Promise((r) => setTimeout(r, 4000));
 const back = () => send({ type: 'goto', url: '/' });
 console.log(`autocal: wall ${wall} → ${out}`);
-try { run(process.execPath, [path.join(here, 'capture.mjs'), '--out', out, ...rigArgs]); } finally { await back(); }
+// The capture talks to the projector over USB for ~30 s; retry once if the link hiccups.
+try {
+  for (let attempt = 1; ; attempt++) {
+    try { run(process.execPath, [path.join(here, 'capture.mjs'), '--out', out, ...rigArgs]); break; }
+    catch (e) {
+      if (attempt >= 2) fail('capturing failed twice. The USB link to the projector dropped; check the cable is firmly in at both ends.');
+      console.log('autocal: capture interrupted, retrying…');
+      await send({ type: 'goto', url: '/autocal.html' });
+      await new Promise((r) => setTimeout(r, 4000));
+    }
+  }
+} finally { await back(); }
 run(process.execPath, [path.join(here, 'decode.mjs'), out]);
 const py = fs.existsSync(path.join(root, 'data/tools/venv/bin/python')) ? path.join(root, 'data/tools/venv/bin/python') : 'python3';
 // Each photo of the print is fitted on its own. The corners come from the pattern-
