@@ -24,7 +24,8 @@ hdmi() {
   sh_ am start ${1:+-S} -n com.softwinner.awlivetv/.MainActivity >/dev/null && echo "projector: HDMI${1:+ (re-tuned)}"
 }
 # Is the wall page up on this box (so HDMI is really carrying a picture)?
-page_up() { timeout 2 curl -s -N http://localhost:${PORT:-8080}/api/events 2>/dev/null | grep -q '"scene"'; }
+# (Captured first: with pipefail, curl cut off by timeout would fail a pipeline.)
+page_up() { local s; s=$(timeout 2 curl -s -N "http://localhost:${PORT:-8080}/api/events" 2>/dev/null); [[ $s == *'"scene"'* ]]; }
 
 case "${1:-status}" in
   hdmi)
