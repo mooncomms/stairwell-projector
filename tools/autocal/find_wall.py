@@ -26,7 +26,13 @@ W, H = a.w, a.h
 
 luma = lambda n: np.fromfile(f'{a.run}/{n}.yuv', np.uint8).reshape(H, W, 2)[:, :, 0].astype(np.float32)
 white, black = luma(a.photo), luma('black')
-lit = cv2.erode(((white - black) > 20).astype(np.uint8), np.ones((9, 9), np.uint8)) > 0   # away from the beam's edge
+# Search only well inside the lit area: the beam's own edge (unlit -> lit) is a strong step
+# too, and after blurring and the gradient filter it reaches ~10 px inwards.
+# "Lit" is relative to the beam's brightness: stray room light outside the beam can be well
+# above a fixed threshold (seen: ~30 outside, ~80 on the side walls, ~115 on the wall).
+diff = white - black
+lit_thr = max(20.0, 0.5 * float(np.percentile(diff, 90)))
+lit = cv2.erode((diff > lit_thr).astype(np.uint8), np.ones((25, 25), np.uint8)) > 0
 img = cv2.GaussianBlur(white, (0, 0), 2.0)
 gx = cv2.Sobel(img, cv2.CV_32F, 1, 0, ksize=5)
 gy = cv2.Sobel(img, cv2.CV_32F, 0, 1, ksize=5)
