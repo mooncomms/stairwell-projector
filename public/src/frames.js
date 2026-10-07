@@ -206,40 +206,46 @@ function ship(p, W, H, cm) {
   return surf.done();
 }
 
-// A wall smashed open: a big ragged hole, a band of exposed brick and broken plaster
-// thickness around it, cracks running out into what's left. Seeded, so it's the same
-// hole every time.
+// A wall smashed open: a big ragged hole with a band of exposed brick around it. Outside
+// the hole the frame is black, so the real wall stays as it is and only the hole's
+// broken edge is projected. Seeded, so it's the same hole every time.
 function broken(p, W, H, cm) {
   const surf = surface(p, W, H);
   const c = surf.c;
   let seed = 7;
   const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-  const plaster = [74, 71, 66], brick = [92, 46, 34], mortar = [58, 54, 50];
+  const brick = [92, 46, 34], mortar = [58, 54, 50];
 
-  // Remaining wall: plaster with a faint mottle.
-  c.fillStyle = rgb(plaster); c.fillRect(0, 0, W, H);
-  for (let i = 0; i < 900; i++) {
-    c.fillStyle = `rgba(${rnd() < 0.5 ? '0,0,0' : '255,255,255'},${0.02 + rnd() * 0.03})`;
-    const r = (0.5 + rnd() * 3) * cm;
-    c.beginPath(); c.arc(rnd() * W, rnd() * H, r, 0, Math.PI * 2); c.fill();
-  }
+  // Outside the hole: no light at all (the real wall).
+  c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
 
-  // The hole: a jagged ring around the centre, rough at two scales, leaving thicker
-  // remnants towards the corners.
-  const cx = W / 2, cy = H * 0.48, rx = W * 0.4, ry = H * 0.42;
+  // The hole: a jagged ring around the centre, rough at two scales.
   const N = 160, jag = [], lip = [], phase = [rnd() * 6, rnd() * 6, rnd() * 6];
   // Smooth noise along the edge (random values, interpolated), for the plaster band.
   const smooth = (n, amp) => { const v = Array.from({ length: n }, () => rnd() * amp); return (i) => { const f = (i / N) * n, j = Math.floor(f) % n, t = f - Math.floor(f); return v[j] * (1 - t) + v[(j + 1) % n] * t; }; };
   const band = smooth(11, 1), fine = smooth(37, 1);
   for (let i = 0; i < N; i++) {
-    const a = (i / N) * Math.PI * 2;
+    const a = (i / N) * Math.PI * 2, low = Math.sin(a) > 0.2;   // bottom part (y grows down)
     const wob = 0.09 * Math.sin(a * 3 + phase[0]) + 0.06 * Math.sin(a * 7 + phase[1]) + 0.04 * Math.sin(a * 13 + phase[2]);
     // Irregular teeth: mostly small breaks, now and then a deep notch or a jutting shard.
+    // No shards along the bottom: they'd poke up into the view and hide a horizon.
     const r = rnd();
-    const tooth = r < 0.1 ? 0.06 + rnd() * 0.07 : r < 0.18 ? -(0.04 + rnd() * 0.05) : (rnd() - 0.5) * 0.035;
-    jag.push(1 + wob + tooth);
+    const tooth = r < 0.1 ? 0.06 + rnd() * 0.07 : r < 0.18 && !low ? -(0.03 + rnd() * 0.04) : (rnd() - 0.5) * 0.035;
+    jag.push(low ? Math.max(0.97, 1 + wob + tooth) : 1 + wob + tooth);
     // Plaster broken back from the brick by a varying amount (sometimes nearly flush).
     lip.push(0.015 + band(i) * 0.13 + fine(i) * 0.03);
+  }
+  // Keep the whole broken edge inside the wall, with a margin: wherever it would reach
+  // too far, ease it back (softly, so it doesn't run flat along the wall's edge).
+  const cx = W / 2, cy = H * 0.48, m = 4 * cm, rx = W * 0.42, ry = H * 0.44;
+  for (let i = 0; i < N; i++) {
+    const a = (i / N) * Math.PI * 2, dx = Math.abs(Math.cos(a)) * rx, dy = Math.sin(a) * ry;
+    const kmax = Math.min(dx > 0 ? (cx - m) / dx : Infinity, dy < 0 ? (cy - m) / -dy : dy > 0 ? (H - cy - m) / dy : Infinity);
+    const k = jag[i] + lip[i], knee = 0.8 * kmax, room = kmax - knee;
+    if (k > knee) {
+      const f = (knee + room * Math.tanh((k - knee) / room)) / k;
+      jag[i] *= f; lip[i] *= f;
+    }
   }
   // The edge, `grow` beyond the hole (lip = the plaster's broken edge).
   const holePath = (cc, grow = 0) => {
@@ -263,31 +269,8 @@ function broken(p, W, H, cm) {
     }
   }
   c.restore();
-  // Plaster edge: a light broken lip, then shadow falling inwards onto the bricks.
-  c.save();
-  c.lineJoin = 'round';
-  c.strokeStyle = rgb(plaster, 1.35); c.lineWidth = 0.8 * cm;
-  c.beginPath(); holePath(c, 'lip'); c.stroke();
-  c.restore();
+  // The plaster's broken edge casts a shadow inwards onto the bricks.
   innerShadow(c, (cc) => holePath(cc, 'lip'), 2.5 * cm, 0.6);
-
-  // Cracks: branching random walks starting at the hole's edge, heading outwards.
-  const crack = (x, y, ang, len, width, depth) => {
-    c.beginPath(); c.moveTo(x, y);
-    const step = 1.6 * cm;
-    for (let d = 0; d < len; d += step) {
-      ang += (rnd() - 0.5) * 0.7;
-      x += Math.cos(ang) * step; y += Math.sin(ang) * step;
-      c.lineTo(x, y);
-      if (depth < 2 && rnd() < 0.05) crack(x, y, ang + (rnd() < 0.5 ? 1 : -1) * (0.5 + rnd() * 0.6), len * 0.45, width * 0.6, depth + 1);
-    }
-    c.strokeStyle = `rgba(20,18,16,${0.75 - depth * 0.15})`; c.lineWidth = width; c.stroke();
-  };
-  for (let k = 0; k < 16; k++) {
-    const i = Math.floor(rnd() * N), a = (i / N) * Math.PI * 2;
-    const x = cx + Math.cos(a) * rx * (jag[i] + lip[i]), y = cy + Math.sin(a) * ry * (jag[i] + lip[i]);
-    crack(x, y, a + (rnd() - 0.5) * 0.6, (12 + rnd() * 30) * cm, (0.25 + rnd() * 0.25) * cm, 0);
-  }
 
   // Open the hole, with depth: the wall's thickness casts a soft shadow inwards.
   cut(c, (cc) => holePath(cc));
