@@ -21,8 +21,9 @@ import sky from './scenes/sky.js';
 import lavalamp from './scenes/lavalamp.js';
 import glow from './scenes/glow.js';
 import traffic from './scenes/traffic.js';
+import party, { LOOKS } from './scenes/party.js';
 
-const SCENES = [starfield, nebula, boids, trippy, nature, icarus, painting, underwater, destroyer, jellyfish, rain, aurora, sky, lavalamp, glow, traffic, testcard];
+const SCENES = [starfield, nebula, boids, trippy, nature, icarus, painting, underwater, destroyer, jellyfish, rain, aurora, sky, lavalamp, glow, traffic, party, testcard];
 
 const [config, savedCal] = await Promise.all([
   fetch('/api/config').then((r) => r.json()),
@@ -54,7 +55,11 @@ function maskPanels(grow = 0) {
   });
 }
 // Runtime switches scenes can read each frame (toggled from the remote).
-const flags = { spotlight: !!config.spotlight?.on };
+const flags = {
+  spotlight: !!config.spotlight?.on,
+  // Party scene: tempo (beats per minute, and when a beat fell), auto-changing, choices.
+  party: { bpm: config.party?.bpm ?? 124, t0: performance.now() / 1000, auto: true, look: null, dancer: null, cmds: [] },
+};
 const ctx = { W, H, wall, config, panels, flags, pxPerM: H / wall.heightM };
 
 // Window frames (walls with "frames": true). Chosen per wall from the remote and saved
@@ -141,6 +146,7 @@ new p5((p) => {
     return on <= off ? m >= on && m < off : m >= on || m < off;
   }
 
+  let lastKey = '';
   p.draw = () => {
     const dt = Math.min(p.deltaTime / 1000, 0.1);
     fps += (p.frameRate() - fps) * 0.05;
@@ -151,6 +157,9 @@ new p5((p) => {
     const cal = calib.cal;
     const showContent = !calib.active || calib.pattern === 'content' || calib.pattern === 'frame';
     if (showContent && (power > 0.002 || calib.active)) scenes.update(dt);
+    // Tell the remote when the scene changes on its own (rotation, party auto mode).
+    const key = [scenes.name, flags.party.look, flags.party.dancer, flags.party.auto, Object.keys(flags.party.dancers || {}).length].join();
+    if (key !== lastKey) { lastKey = key; reportState(); }
 
     if (calib.active) setPattern(calib.pattern);
     if (!showContent && patternScene) {
@@ -239,6 +248,14 @@ new p5((p) => {
       case 'prev': scenes.prev(); break;
       case 'blackout': blackout = cmd.on ?? !blackout; break;
       case 'spotlight': flags.spotlight = cmd.on ?? !flags.spotlight; break;
+      case 'party': {
+        const pt = flags.party;
+        if (cmd.bpm) pt.bpm = Math.max(60, Math.min(200, +cmd.bpm));
+        if (cmd.beat) pt.t0 = performance.now() / 1000;         // a beat falls now (tap)
+        if (cmd.action) pt.cmds.push(cmd);
+        setTimeout(reportState, 100);                            // after the scene has applied it
+        break;
+      }
       case 'frame': if (config.frames && (cmd.v === 'auto' || cmd.v === 'none' || FRAMES[cmd.v])) calib.set('frame', cmd.v); break;
       case 'hud': hud = !hud; break;
       case 'brightness': calib.set('brightness', clamp01(cmd.v ?? c.brightness + (cmd.d || 0))); break;
@@ -332,6 +349,8 @@ new p5((p) => {
           screen: { w: innerWidth, h: innerHeight, dpr: devicePixelRatio, cw: p.width, ch: p.height, pd: p.pixelDensity() },
           wall: config.wallName, scenes: (scenes.playlist.length ? scenes.playlist : SCENES.map((s) => s.name)), scene: scenes.name, blackout, spotlight: config.spotlight ? flags.spotlight : null, autocal: true,
           frames: config.frames ? FRAME_NAMES : null, frame: calib.cal.frame ?? 'auto',
+          party: scenes.name === 'party' ? { looks: LOOKS, dancers: flags.party.dancers || {}, look: flags.party.look, dancer: flags.party.dancer, auto: flags.party.auto, bpm: Math.round(flags.party.bpm) } : null,
+          fps: Math.round(fps),
           calibrating: calib.active, pattern: calib.pattern, dirty: calib.dirty,
           selected: calib.selected, handles: calib.handles().length,
           handleName: ((h) => (h ? (h.corner >= 0 ? `${['TL', 'TR', 'BR', 'BL'][h.corner]} corner` : `edge point`) : ''))(calib.handles()[calib.selected]),

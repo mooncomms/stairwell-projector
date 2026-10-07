@@ -73,7 +73,15 @@ export class SceneManager {
 
   update(dt) {
     this.sinceSwitch += dt;
-    if (this.sceneSeconds > 0 && this.sinceSwitch > this.sceneSeconds && this.playlist.length > 1) this.next();
+    // Scenes marked `hold` (party) stay until changed, and the rotation skips them.
+    const cur = (this.incoming || this.current)?.def;
+    if (this.sceneSeconds > 0 && this.sinceSwitch > this.sceneSeconds && this.playlist.length > 1 && !cur?.hold) {
+      const list = this.playlist, i = list.indexOf(cur?.name);
+      for (let k = 1; k <= list.length; k++) {
+        const n = list[(i + k) % list.length];
+        if (!this.defs[n].hold) { this.go(n); break; }
+      }
+    }
 
     for (const s of [this.current, this.incoming]) {
       if (!s) continue;

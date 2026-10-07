@@ -3,11 +3,11 @@
 Ideas and future phases. Nothing here is scheduled.
 
 ## Scenes and ideas
-- **Party mode: go-go dancer silhouette** (maybe pole dancing): a life-size dancer silhouette on a beat-synced background. Ideas for how, in rough order of realism:
-  - **Video → silhouette:** dancer footage (stock or filmed against a plain wall), segmented offline into a mask video (MediaPipe / rembg); the scene plays the mask, filled flat or rim-lit, over the background. Most realistic; the only practical route for pole work.
-  - **Motion capture:** free dance mocap (Mixamo, CMU) driving a 2D/3D skeleton drawn as a filled silhouette. Fully generative timing (can follow the BPM), less natural.
-  - **Procedural:** a hand-animated skeleton with sine-driven joints. Cheapest, looks robotic.
-  - Background: colour washes and gradients on the beat (BPM tapped on the remote, or a mic on the box). Keep flashes slow (≤ 3 Hz, no full-wall strobe): it's a stairwell, and people walk it in the dark.
+- **Party mode:** built as the `party` scene (see the README): dancers cut out of stock clips (video → silhouette), four looks, tap tempo. Next:
+  - Follow the music by itself: a USB mic on the box and beat detection, instead of tapping.
+  - More dancers: film a friend against a plain wall (best: still camera, whole body in frame, dark clothes on a light wall).
+  - Motion capture (Mixamo, CMU) for dancers that move to the tempo, rather than at the clip's own speed.
+  - Keep flashes slow (≤ 3 Hz, no full-wall strobe): it's a stairwell, and people walk it in the dark.
 
 ## Phase: public release
 Not planned yet; what it would take to make the project usable by others.

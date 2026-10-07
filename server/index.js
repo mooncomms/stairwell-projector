@@ -161,7 +161,8 @@ const routes = {
     if (dir && !/^[\w-]+$/.test(dir)) return json(res, 400, { error: 'bad dir' });
     const prefix = dir ? dir + '/' : '';
     let files = [];
-    try { files = (await fsp.readdir(path.join(await wallDir(), 'media', dir))).filter((f) => MEDIA_EXT.test(f)).sort(); } catch {}
+    const ext = dir === 'dancers' ? /\.json$/i : MEDIA_EXT;      // party scene: cut-out outlines
+    try { files = (await fsp.readdir(path.join(await wallDir(), 'media', dir))).filter((f) => ext.test(f)).sort(); } catch {}
     json(res, 200, files.map((f) => ({ url: '/media/' + prefix + encodeURIComponent(f), video: /\.(mp4|webm|mov)$/i.test(f) })));
   },
   'POST /api/cmd': async (req, res) => {

@@ -94,6 +94,40 @@ On walls with `"frames": true` (the stairwell), a window frame can be laid over 
 
 The choice is saved per wall with its calibration. Each scene's frame crossfades with it. Frames are drawn in `public/src/frames.js`, and kept fairly dark because they're projected light too.
 
+## Party
+The `party` scene puts a life-size dancer on the wall, in one of four looks, on the beat:
+- **Pop:** a black silhouette on a flat colour that changes every two beats (the iPod ads).
+- **Spotlight:** a shadow on a glowing disc of light, 60s go-go style. It's warm, drifting orange to pink.
+- **Neon:** a glowing outline with fading echoes of the dancer's last moves.
+- **Club:** a chrome pole, coloured beams sweeping up from the floor, and a rim-lit dancer.
+
+It's in the playlist, but the 10-minute rotation never lands on it, and it stays until you change scene. On the remote, under the scene buttons:
+- **Look** and **Dancer** pick what's shown.
+- **Tap tempo:** tap along to the music. The beat lands on each tap, and two or more taps set the tempo.
+- **− / +** nudge the tempo.
+- **Auto** changes look and dancer every 16 bars. Picking a look or dancer turns it off.
+
+Nothing strobes: colour changes come at most every two beats and soften in, because it's a stairwell and people walk it in the dark.
+
+Set `"party": { "bpm": 124, "size": 0.9 }` in the wall's config to change the starting tempo and the dancer's size (1 = life size).
+
+**Dancers** are vector outlines cut out of real dance clips, in the wall's `media/dancers/` (local, like other media; the clips' licences don't allow redistributing them). Make one with `tools/dancer/cutout.py`, in a Python venv with `opencv-python-headless` and `mediapipe` (the models download on first use):
+
+```sh
+python3 -m venv data/dancer/venv && data/dancer/venv/bin/pip install opencv-python-headless mediapipe
+PY=data/dancer/venv/bin/python; O=walls/stairwell/media/dancers
+# Mixkit 51757 "Silhouette of a dancer on a red background": a dark figure on colour
+$PY tools/dancer/cutout.py 51757-720.mp4 $O/headphones.json --method dark --full-body
+# Pexels 8047525 "Shadow of a person dancing": a shadow on a spotlight disc
+$PY tools/dancer/cutout.py 8047525.mp4 $O/shadow.json --method shadow --eps 1.6
+# Mixkit 34896 "Woman practicing pole dance": person segmentation, pole tracked near the ceiling
+$PY tools/dancer/cutout.py 34896-720.mp4 $O/pole-studio.json --method person --crop 0,0.56 --pole 466 --pole-band 0,0.12 --floor 0.928
+# Mixkit 36512 "Woman giving twists while practicing pole dance": the camera pans, the pole is tracked
+$PY tools/dancer/cutout.py 36512-720.mp4 $O/pole-rooftop.json --method person --crop 0.2,0.8 --pole 615 --pole-band 0.85,0.93
+```
+
+Each run also writes a `.png` next to the `.json`, with the outlines drawn over eight frames, to check the cut-out. The best clips have a still camera, the whole body in frame, and a plain background. Placement (pinned to the floor, a pole, or a disc), life-size scale and which looks suit each dancer are in `DANCERS` at the top of `public/src/scenes/party.js`. A new file without an entry there still plays, with guessed placement.
+
 ## Live sky
 The `sky` scene shows the real sky right now: sun position, colours, clouds, stars and moon phase. Set it up in the wall's `config.json` under `"sky"`:
 - `lat` and `lon`: your location.

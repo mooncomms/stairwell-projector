@@ -58,6 +58,22 @@
   <div class="row" id="spotRow">
     <button id="spotlight" data-cmd='{"type":"spotlight"}'>Spotlight</button>
   </div>
+  <div id="partyBox">
+    <div class="row">
+      <label style="margin:0;flex:1"><span>Look</span><select id="partyLook" style="flex:1;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:12px 8px;font:inherit"></select></label>
+    </div>
+    <div class="row">
+      <label style="margin:0;flex:1"><span>Dancer</span><select id="partyDancer" style="flex:1;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:12px 8px;font:inherit"></select></label>
+    </div>
+    <div class="row">
+      <button id="bpmDown">−</button>
+      <button id="partyTap" style="flex:3">Tap tempo</button>
+      <button id="bpmUp">+</button>
+    </div>
+    <div class="row">
+      <button id="partyAuto" data-cmd='{"type":"party","action":"auto"}'>Auto</button>
+    </div>
+  </div>
   </section>
 
   <section id="secLight">
@@ -206,6 +222,25 @@
       if (!r.ok) $('autoStatus').textContent = (await r.json()).error || 'could not start';
     });
 
+    // Party: look, dancer, and tempo. Tap along to the music: the beat lands on each tap,
+    // and two or more taps set the tempo (timed here on the phone, so network lag doesn't
+    // smear it).
+    $('partyLook').addEventListener('change', (e) => send({ type: 'party', action: 'look', v: e.target.value }));
+    $('partyDancer').addEventListener('change', (e) => send({ type: 'party', action: 'dancer', v: e.target.value }));
+    let taps = [];
+    $('partyTap').addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      const now = performance.now();
+      if (taps.length && now - taps[taps.length - 1] > 2000) taps = [];
+      taps.push(now); taps = taps.slice(-8);
+      const cmd = { type: 'party', beat: true };
+      if (taps.length >= 2) cmd.bpm = Math.round((60000 * (taps.length - 1)) / (now - taps[0]));
+      send(cmd);
+      $('partyTap').textContent = cmd.bpm ? `Tap · ${cmd.bpm} bpm` : 'Tap again…';
+    });
+    $('bpmDown').addEventListener('click', () => send({ type: 'party', bpm: (state.party?.bpm || 124) - 2 }));
+    $('bpmUp').addEventListener('click', () => send({ type: 'party', bpm: (state.party?.bpm || 124) + 2 }));
+
     // Window frame: auto (scene default), none, or a named frame.
     $('frameSel').addEventListener('change', (e) => send({ type: 'frame', v: e.target.value }));
 
@@ -244,6 +279,19 @@
         const opts = [['auto', 'Auto (scene default)'], ['none', 'None'], ...Object.entries(s.frames)];
         $('frameSel').innerHTML = opts.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
         $('frameSel').value = s.frame || 'auto';
+      }
+      $('partyBox').style.display = s.party ? '' : 'none';
+      if (s.party) {
+        const fill = (id, opts, v) => {
+          if (document.activeElement === $(id)) return;
+          $(id).innerHTML = Object.entries(opts).map(([k, l]) => `<option value="${k}">${l}</option>`).join('');
+          $(id).value = v || '';
+        };
+        fill('partyLook', s.party.looks, s.party.look);
+        fill('partyDancer', s.party.dancers, s.party.dancer);
+        $('partyAuto').classList.toggle('on', !!s.party.auto);
+        $('partyAuto').textContent = s.party.auto ? 'Auto: changes every 16 bars' : 'Auto: off';
+        if (!taps.length || performance.now() - taps[taps.length - 1] > 2000) $('partyTap').textContent = `Tap tempo · ${s.party.bpm} bpm`;
       }
       $('spotlight').classList.toggle('on', !!s.spotlight);
       $('spotlight').textContent = s.spotlight ? 'Spotlight: on' : 'Spotlight: off';
