@@ -1,6 +1,6 @@
 // Calibration test card, in real-world units: fine lines every 10 cm, bold every 50 cm,
 // a 1 m circle (must look round on the wall), and a gray ramp to judge brightness.
-export default {
+const testcard = {
   name: 'testcard',
   create(p, g, { W, H, pxPerM }) {
     function render() {
@@ -42,6 +42,7 @@ export default {
     return { draw() {} };
   },
 };
+export default testcard;
 
 // Solid fields used by calibration patterns.
 export function fill(level) {
