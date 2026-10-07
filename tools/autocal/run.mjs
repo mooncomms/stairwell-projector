@@ -20,7 +20,8 @@ const port = args.port || 8080, base = `http://localhost:${port}`;
 const here = path.dirname(new URL(import.meta.url).pathname), root = path.resolve(here, '../..');
 const config = await (await fetch(`${base}/api/config`)).json();
 const wall = config.wallName;
-if (!config.reference) throw new Error(`wall "${wall}" has no reference image; this tool calibrates against a known print`);
+// A wall with a reference print is found by matching the print; a plain wall by its edges.
+const mode = config.reference ? 'print' : 'edges';
 const out = path.join(root, 'data', 'autocal', `${wall}-${new Date().toISOString().replace(/[:.]/g, '-')}`);
 const rigArgs = ['--port', port, ...(args.adb ? ['--adb', args.adb] : []), ...(args.serial ? ['--serial', args.serial] : []), '--exposure', args.exposure || 50];
 
@@ -61,6 +62,18 @@ try {
 } finally { await back(); }
 run(process.execPath, [path.join(here, 'decode.mjs'), out]);
 const py = fs.existsSync(path.join(root, 'data/tools/venv/bin/python')) ? path.join(root, 'data/tools/venv/bin/python') : 'python3';
+if (mode === 'edges') {
+  // Plain wall: find its edges; edges the camera can't see are kept from the current calibration.
+  const cur = path.join(out, 'current.json');
+  fs.writeFileSync(cur, JSON.stringify((await (await fetch(`${base}/api/calibration`)).json()) || {}));
+  try { run(py, [path.join(here, 'find_wall.py'), out, '--current', cur]); }
+  catch { fail('the wall\'s edges weren\'t found. Is the projector aimed at the wall, with the room dim?'); }
+  const w = JSON.parse(fs.readFileSync(path.join(out, 'wall.json'), 'utf8'));
+  fs.writeFileSync(path.join(out, 'print.json'), JSON.stringify(w));
+  const kept = Object.entries(w.edges).filter(([, e]) => e.source !== 'camera').map(([n]) => n);
+  console.log(`wall edges found by the camera: ${Object.entries(w.edges).filter(([, e]) => e.source === 'camera').map(([n]) => n).join(', ')}` +
+    (kept.length ? `; kept from the current calibration: ${kept.join(', ')} (aim the beam a little past them to have them found)` : ''));
+} else {
 // Each photo of the print is fitted on its own. The corners come from the pattern-
 // exposure photo ('white'), which has proven reliable; the brighter photos only supply
 // per-pane measurements, and only when their whole-print fit agrees with it (a brighter
@@ -87,6 +100,7 @@ for (const [ph, r] of Object.entries(results)) {
 }
 fs.writeFileSync(path.join(out, 'print.json'), JSON.stringify(merged, null, 2));
 console.log(`corners from: ${results.white ? 'white' : 'best photo'} (${main.inliers} matches); panes ${merged.panes.map((p) => (p.used ? `${p.inliers}${p.photo ? '@' + p.photo : ''}` : '–')).join(' / ')}`);
+}
 const found = JSON.parse(fs.readFileSync(path.join(out, 'print.json'), 'utf8'));
 const current = (await (await fetch(`${base}/api/calibration`)).json()) || {};
 const next = { ...current, corners: found.corners, edges: [[], [], [], []] };

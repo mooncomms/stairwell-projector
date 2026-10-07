@@ -31,5 +31,11 @@ The HY320's built-in camera sits next to the lens and sees the whole projected a
 - **Command:** `node tools/autocal/run.mjs --apply`. Add `--adb`, `--serial`, `--port` or `--exposure` as needed.
 - **Output:** each run's data goes to `data/autocal/<wall>-<time>/`, including the previous calibration.
 
-## Not yet
-- Walls without a print (the stairwell). There, the wall's edges have to be found instead.
+## Plain walls (the stairwell): `find_wall.py`
+The wall faces the projector, so under white light it's brighter than the side walls, ceiling and ledge around it, which the light hits at a grazing angle. Each edge is therefore a brightness step:
+- Left and right are found row by row, top and bottom column by column, each fitted as a straight line.
+- The lines go through the measured camera → projector map and are intersected in projector pixels.
+- An edge only counts if it's a clear, straight, consistent step (most rows agreeing, under 1.5 px error, comparable in strength to the clearest edge). Otherwise that edge is kept from the current calibration, and the run reports which.
+- **To have all four edges found,** aim the beam a little past the wall on every side.
+
+First stairwell capture (2026-10-07): left and right edges found with 100% and 81% agreement and 0.26 and 0.41 camera px error. Top and bottom were outside the camera's view.

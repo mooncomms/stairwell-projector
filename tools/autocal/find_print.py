@@ -21,50 +21,9 @@ raw = np.fromfile(a.photo, np.uint8).reshape(a.h, a.w, 2)
 cam = raw[:, :, 0].copy()                                   # luma
 ref = cv2.imread(a.reference, cv2.IMREAD_GRAYSCALE)
 RH, RW = ref.shape
-# Measured camera -> projector correspondence (includes the camera's lens distortion,
-# which a plain plane homography would miss).
-cap = json.load(open(f'{a.run}/capture.json'))
-cmap = np.fromfile(f'{a.run}/map.bin', np.float32).reshape(a.h, a.w, 2)
-
-# Smooth model camera -> projector from every decoded pixel: a homography (the wall
-# plane) plus a quadratic correction for lens distortion. Used where the print is too
-# dark for the stripe patterns to decode.
-_vy, _vx = np.nonzero(~np.isnan(cmap[:, :, 0]))
-_step = max(1, len(_vx) // 20000)
-_cx, _cy = _vx[::_step].astype(np.float64), _vy[::_step].astype(np.float64)
-_pv = cmap[_vy[::_step], _vx[::_step]].astype(np.float64)
-_Hm, _ = cv2.findHomography(np.c_[_cx, _cy].astype(np.float32), _pv.astype(np.float32), cv2.RANSAC, 6.0)
-def _poly(x, y):
-    u, v = (x - a.w / 2) / a.w, (y - a.h / 2) / a.h
-    return np.c_[np.ones_like(u), u, v, u * u, u * v, v * v, u * u * u, u * u * v, u * v * v, v * v * v]
-_hp = cv2.perspectiveTransform(np.c_[_cx, _cy].reshape(-1, 1, 2).astype(np.float64), _Hm).reshape(-1, 2)
-_res = _pv - _hp
-_keep = np.hypot(_res[:, 0], _res[:, 1]) < 25          # ignore other surfaces / bad decodes
-_cfx, *_ = np.linalg.lstsq(_poly(_cx[_keep], _cy[_keep]), _res[_keep, 0], rcond=None)
-_cfy, *_ = np.linalg.lstsq(_poly(_cx[_keep], _cy[_keep]), _res[_keep, 1], rcond=None)
-def model(x, y):
-    hp = cv2.perspectiveTransform(np.float64([[[x, y]]]), _Hm).reshape(2)
-    P = _poly(np.float64([x]), np.float64([y]))
-    return hp[0] + (P @ _cfx)[0], hp[1] + (P @ _cfy)[0]
-_r2 = _res[_keep] - np.c_[_poly(_cx[_keep], _cy[_keep]) @ _cfx, _poly(_cx[_keep], _cy[_keep]) @ _cfy]
-MODEL_RMS = float(np.sqrt((_r2 ** 2).sum(1).mean()))
-
-def cam2proj(pts):
-    out = []
-    for x, y in pts:
-        xi, yi = int(round(x)), int(round(y))
-        y0, y1, x0, x1 = max(0, yi - 4), min(a.h, yi + 5), max(0, xi - 4), min(a.w, xi + 5)
-        win = cmap[y0:y1, x0:x1].reshape(-1, 2)
-        gy, gx = np.mgrid[y0:y1, x0:x1]
-        ok = ~np.isnan(win[:, 0])
-        if ok.sum() < 6:
-            out.append(model(x, y)); continue
-        # Local affine fit camera -> projector over the window, evaluated at (x, y).
-        A = np.c_[gx.ravel()[ok], gy.ravel()[ok], np.ones(ok.sum())]
-        cx, *_ = np.linalg.lstsq(A, win[ok, 0], rcond=None)
-        cy, *_ = np.linalg.lstsq(A, win[ok, 1], rcond=None)
-        out.append((cx @ [x, y, 1], cy @ [x, y, 1]))
-    return np.float32(out)
+from camproj import CamProj
+_cp = CamProj(a.run, a.w, a.h)
+cap, cam2proj, MODEL_RMS = _cp.cap, _cp, _cp.model_rms
 
 # Contrast-normalise both (the camera sees projected/reflected light, the reference is a file).
 clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))

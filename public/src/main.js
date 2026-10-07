@@ -330,7 +330,7 @@ new p5((p) => {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           screen: { w: innerWidth, h: innerHeight, dpr: devicePixelRatio, cw: p.width, ch: p.height, pd: p.pixelDensity() },
-          wall: config.wallName, scenes: (scenes.playlist.length ? scenes.playlist : SCENES.map((s) => s.name)), scene: scenes.name, blackout, spotlight: config.spotlight ? flags.spotlight : null, autocal: !!config.reference,
+          wall: config.wallName, scenes: (scenes.playlist.length ? scenes.playlist : SCENES.map((s) => s.name)), scene: scenes.name, blackout, spotlight: config.spotlight ? flags.spotlight : null, autocal: true,
           frames: config.frames ? FRAME_NAMES : null, frame: calib.cal.frame ?? 'auto',
           calibrating: calib.active, pattern: calib.pattern, dirty: calib.dirty,
           selected: calib.selected, handles: calib.handles().length,
