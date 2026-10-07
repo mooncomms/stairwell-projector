@@ -90,7 +90,7 @@ On walls with `"frames": true` (the stairwell), a window frame can be laid over 
   - **sub:** underwater, jellyfish.
   - **ship:** starfield, nebula, destroyer.
   - The rest have no frame.
-- **None**, **House window**, **Porthole (sub base)**, **Spaceship viewport**: the same frame for every scene.
+- **None**, **House window**, **Porthole (sub base)**, **Spaceship viewport**, **Broken wall**: the same frame for every scene.
 
 The choice is saved per wall with its calibration. Each scene's frame crossfades with it. Frames are drawn in `public/src/frames.js`, and kept fairly dark because they're projected light too.
 
