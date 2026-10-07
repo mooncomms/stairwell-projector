@@ -64,13 +64,17 @@ case "${1:-status}" in
   watch)
     # Once per projector boot (so its menus stay usable afterwards): switch to HDMI, then,
     # once the wall page is up here, re-tune once so a "no signal" from startup clears.
-    last="" retuned=""
+    # Remembered on disk, so restarting this service (e.g. on update) doesn't redo it for a
+    # projector that's already running: that would flash its source menu mid-show.
+    STATE="$(dirname "$0")/../data/projector-boot"
+    mkdir -p "$(dirname "$STATE")"
+    last=$(cat "$STATE" 2>/dev/null || true); retuned="$last"
     while true; do
       if connected && booted; then
         id=$(sh_ cat /proc/sys/kernel/random/boot_id)
         if [ -n "$id" ] && [ "$id" != "$last" ]; then
           sleep 4      # let its launcher settle first
-          hdmi && last="$id" && since=$(date +%s)
+          hdmi && last="$id" && since=$(date +%s) && echo "$id" > "$STATE"
         elif [ -n "$last" ] && [ "$retuned" != "$last" ]; then
           if page_up; then sleep 5; reselect; retuned="$last"
           elif [ $(( $(date +%s) - since )) -gt 600 ]; then retuned="$last"   # give up after 10 min
