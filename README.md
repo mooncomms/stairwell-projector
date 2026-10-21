@@ -31,6 +31,8 @@ npm start            # http://localhost:8080   (remote: http://<box-ip>:8080/rem
 npm test             # homography math
 ```
 
+The playlist rotates every `sceneSeconds`. On the remote, the box on each scene's tile puts it in or leaves it out of the rotation (saved per wall). Tapping a scene still shows it either way.
+
 URL flags: `?scene=boids` · `?calibrate` · `?hud` · `?still` (freeze motion, for comparing scenes against their originals) · `?lids` (painting scene: hold eyelids shut) · `?seek=90` (destroyer scene: start 90 s into its loop)
 
 ## Calibrating on the wall

@@ -30,6 +30,12 @@
     .pad .mid { display: flex; align-items: center; justify-content: center; color: var(--dim); font-size: 12px; text-align: center; }
     .row { display: flex; gap: 8px; margin: 8px 0; }
     .row > * { flex: 1; }
+    /* Scene tiles: tap to show; the corner box includes it in the automatic rotation. */
+    .scn { position: relative; display: flex; }
+    .scn button { flex: 1; min-width: 0; padding: 14px 32px 14px 6px; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .scn.out button:not(.on) { color: var(--dim); border-style: dashed; }
+    .scn .rot { position: absolute; top: 0; right: 0; bottom: 0; width: 34px; display: flex; align-items: center; justify-content: center; margin: 0; }
+    .scn .rot input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
     #calib { display: none; }
     #calib.show { display: block; }
   </style>
@@ -241,6 +247,12 @@
     $('bpmDown').addEventListener('click', () => send({ type: 'party', bpm: (state.party?.bpm || 124) - 2 }));
     $('bpmUp').addEventListener('click', () => send({ type: 'party', bpm: (state.party?.bpm || 124) + 2 }));
 
+    // Scene checkboxes: in or out of the automatic rotation.
+    $('scenes').addEventListener('change', (e) => {
+      const n = e.target.dataset.rot;
+      if (n) send({ type: 'rotation', name: n, on: e.target.checked });
+    });
+
     // Window frame: auto (scene default), none, or a named frame.
     $('frameSel').addEventListener('change', (e) => send({ type: 'frame', v: e.target.value }));
 
@@ -270,7 +282,12 @@
       const s = state;
       if (s.wall !== wallsFor) loadWalls(); else renderWalls();
       $('status').innerHTML = s.scene ? `showing <b>${s.scene}</b>${s.calibrating ? ' · calibrating' : ''}` : 'waiting for projector page…';
-      $('scenes').innerHTML = (s.scenes || []).map((n) => `<button data-scene="${n}" class="${n === s.scene ? 'on' : ''}">${n}</button>`).join('');
+      const off = s.rotationOff || [], held = s.held || [];
+      $('scenes').innerHTML = (s.scenes || []).map((n) => {
+        const inRot = !off.includes(n) && !held.includes(n);
+        const box = held.includes(n) ? '' : `<label class="rot" title="In the rotation"><input type="checkbox" data-rot="${n}"${inRot ? ' checked' : ''}></label>`;
+        return `<div class="scn${inRot ? '' : ' out'}"><button data-scene="${n}" class="${n === s.scene ? 'on' : ''}">${n}</button>${box}</div>`;
+      }).join('');
       $('blackout').classList.toggle('warn', !!s.blackout);
       $('spotRow').style.display = s.spotlight == null ? 'none' : '';
       $('frameRow').style.display = s.frames ? '' : 'none';

@@ -24,6 +24,7 @@ export class SceneManager {
     this.playlist = (ctx.config.playlist || this.names).filter((n) => this.defs[n]);
     this.sceneSeconds = ctx.config.sceneSeconds ?? 300;
     this.sinceSwitch = 0;
+    this.skip = () => [];  // names left out of the rotation (set by main.js from the calibration)
   }
 
   spawn(name) {
@@ -73,13 +74,15 @@ export class SceneManager {
 
   update(dt) {
     this.sinceSwitch += dt;
-    // Scenes marked `hold` (party) stay until changed, and the rotation skips them.
+    // Scenes marked `hold` (party) stay until changed. The rotation skips them, and any
+    // scene switched off for the rotation on the remote; with none left, it stays put.
     const cur = (this.incoming || this.current)?.def;
     if (this.sceneSeconds > 0 && this.sinceSwitch > this.sceneSeconds && this.playlist.length > 1 && !cur?.hold) {
-      const list = this.playlist, i = list.indexOf(cur?.name);
-      for (let k = 1; k <= list.length; k++) {
+      const list = this.playlist, i = list.indexOf(cur?.name), off = this.skip();
+      this.sinceSwitch = 0;
+      for (let k = 1; k < list.length; k++) {
         const n = list[(i + k) % list.length];
-        if (!this.defs[n].hold) { this.go(n); break; }
+        if (!this.defs[n].hold && !off.includes(n)) { this.go(n); break; }
       }
     }
 

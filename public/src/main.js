@@ -95,6 +95,7 @@ new p5((p) => {
     if (config.frames) for (const name of Object.keys(FRAMES)) frameCache[name] = FRAMES[name](p, W, H, H / (wall.heightM * 100));
 
     scenes = new SceneManager(p, SCENES, ctx);
+    scenes.skip = () => calib.cal.rotationOff || [];
     scenes.go(params.get('scene') || scenes.playlist[0] || SCENES[0].name, 0);
     if (params.has('calibrate')) setCalibrating(true);
     connectRemote();
@@ -244,6 +245,12 @@ new p5((p) => {
     const c = calib.cal;
     switch (cmd.type) {
       case 'scene': scenes.go(cmd.name); break;
+      case 'rotation': {           // include / leave out a scene in the automatic rotation (saved per wall)
+        const off = new Set(c.rotationOff || []);
+        cmd.on ? off.delete(cmd.name) : off.add(cmd.name);
+        calib.set('rotationOff', [...off]);
+        break;
+      }
       case 'next': scenes.next(); break;
       case 'prev': scenes.prev(); break;
       case 'blackout': blackout = cmd.on ?? !blackout; break;
@@ -349,6 +356,7 @@ new p5((p) => {
           screen: { w: innerWidth, h: innerHeight, dpr: devicePixelRatio, cw: p.width, ch: p.height, pd: p.pixelDensity() },
           wall: config.wallName, scenes: (scenes.playlist.length ? scenes.playlist : SCENES.map((s) => s.name)), scene: scenes.name, blackout, spotlight: config.spotlight ? flags.spotlight : null, autocal: true,
           frames: config.frames ? FRAME_NAMES : null, frame: calib.cal.frame ?? 'auto',
+          rotationOff: c.rotationOff || [], held: SCENES.filter((d) => d.hold).map((d) => d.name),
           party: scenes.name === 'party' ? { looks: LOOKS, dancers: flags.party.dancers || {}, look: flags.party.look, dancer: flags.party.dancer, auto: flags.party.auto, bpm: Math.round(flags.party.bpm) } : null,
           fps: Math.round(fps),
           calibrating: calib.active, pattern: calib.pattern, dirty: calib.dirty,
