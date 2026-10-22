@@ -97,7 +97,22 @@ export default {
       };
       const inBox = (x, y, bs) => bs.some((b) => x >= X(b.x) && x < X(b.x + b.w) && y >= Y(b.y) && y < Y(b.y + b.h));
       const t3 = thin(Math.round(1.4 * k / 2)), t8 = thin(Math.round(3.5 * k / 2));
-      paint(title, (x, y, i) => (inBox(x, y, TITLE) ? (t3(i) - 22) / 20 : 0));
+      // Title: thin bright strokes in the title boxes, minus flat horizontal bits (the
+      // sky's brush streaks; letters are taller, and their crossbars join their uprights).
+      const tv = new Float32Array(W * H);
+      for (let i = 0; i < W * H; i++) tv[i] = inBox(i % W, (i / W) | 0, TITLE) ? Math.max(0, Math.min(1, (t3(i) - 22) / 20)) : 0;
+      const lab = new Int32Array(W * H).fill(-1), stack = [];
+      for (let i0 = 0; i0 < W * H; i0++) {
+        if (tv[i0] < 0.3 || lab[i0] >= 0) continue;
+        const comp = []; let y0 = H, y1 = 0; stack.push(i0); lab[i0] = i0;
+        while (stack.length) {
+          const i = stack.pop(); comp.push(i); const y = (i / W) | 0, x = i % W; y0 = Math.min(y0, y); y1 = Math.max(y1, y);
+          for (const j of [i - 1, i + 1, i - W, i + W, i - W - 1, i - W + 1, i + W - 1, i + W + 1]) if (j >= 0 && j < W * H && lab[j] < 0 && tv[j] >= 0.3 && Math.abs((j % W) - x) <= 1) { lab[j] = i0; stack.push(j); }
+        }
+        if (y1 - y0 < 1.3 * kyy) for (const i of comp) tv[i] = 0;
+      }
+      for (let i = 0; i < W * H; i++) if (lab[i] < 0) tv[i] = 0;        // faint bits not on a kept stroke
+      paint(title, (x, y, i) => tv[i]);
       // Below the ridge (a little inside, away from the sky's own streaks).
       const ridgeY = (x) => { const cx = x / k; for (let j = 1; j < RIDGE.length; j++) if (cx <= RIDGE[j][0]) { const [x0, y0] = RIDGE[j - 1], [x1, y1] = RIDGE[j]; return Y(y0 + ((cx - x0) / (x1 - x0)) * (y1 - y0)); } return H; };
       paint(strokes, (x, y, i) => (y > ridgeY(x) - 2 * kyy ? (t8(i) - 18) / 18 : 0));
