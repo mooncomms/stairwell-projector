@@ -42,7 +42,12 @@ if (!/camgrab/.test(tryRun(ADB, [...S, 'shell', 'ls /data/local/tmp/camgrab']) |
 }
 const pyCheck = fs.existsSync(path.join(root, 'data/tools/venv/bin/python')) ? path.join(root, 'data/tools/venv/bin/python') : 'python3';
 if (tryRun(pyCheck, ['-c', 'import cv2, numpy']) !== '') fail('OpenCV for Python is missing. One time: python3 -m venv data/tools/venv && data/tools/venv/bin/pip install opencv-python-headless numpy');
-const send = (cmd) => fetch(`${base}/api/cmd`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) });
+// (Retried once: after the long capture the idle keep-alive connection may have been closed
+// by the server, and the first request on it then fails.)
+const send = (cmd) => {
+  const post = () => fetch(`${base}/api/cmd`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cmd) });
+  return post().catch(post);
+};
 // Switch the projector page to the pattern page, and back to the wall at the end.
 await send({ type: 'goto', url: '/autocal.html' });
 await new Promise((r) => setTimeout(r, 4000));
