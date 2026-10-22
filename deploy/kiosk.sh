@@ -13,6 +13,7 @@ command -v xset >/dev/null && { xset s off; xset -dpms; xset s noblank; } || tru
 BROWSER=$(command -v chromium || command -v chromium-browser || command -v google-chrome)
 exec "$BROWSER" \
   --kiosk "$URL" \
+  --user-data-dir="$HOME/.config/stairwall-kiosk" --disable-extensions \
   --noerrdialogs --disable-infobars --no-first-run \
   --disable-session-crashed-bubble --disable-features=Translate \
   --overscroll-history-navigation=0 \
@@ -21,6 +22,8 @@ exec "$BROWSER" \
   --password-store=basic \
   --check-for-update-interval=31536000 \
   --simulate-outdated-no-au='Tue, 31 Dec 2099 23:59:59 GMT'
+# Own profile, no extensions: an extension in the desktop's normal profile (e.g. AdBlock
+# showing its update page) can open a tab over the wall, which then stops drawing.
 # --password-store=basic: with auto-login the GNOME keyring stays locked; don't ask for it.
 # The update flags stop "Chrome is out of date" prompts on the wall (apt still updates it).
 # To leave kiosk mode: Alt+F4.
