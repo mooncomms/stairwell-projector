@@ -54,7 +54,9 @@ export default {
     const c = g.drawingContext;
     const fx = (key) => ctx.fx('floyd', key);
     const canvas = (w = W, h = H) => { const e = document.createElement('canvas'); e.width = w; e.height = h; return e; };
-    const ctx2 = (e) => e.getContext('2d', { willReadFrequently: true });
+    // Pixel reads only where the title mask is built; everything else stays on the GPU
+    // (CPU-backed canvases composited every frame ran at ~6 fps on the box).
+    const ctx2 = (e, read = false) => e.getContext('2d', read ? { willReadFrequently: true } : undefined);
 
     // ---- masks, built once ----
     const ridgePath = (cc, below) => {
@@ -68,7 +70,7 @@ export default {
     // Title strokes: thin bright lines in the title boxes (bright minus its local opening).
     const title = canvas(), titleGlow = canvas();
     p.loadImage('/media/reference.jpg', (img) => {
-      const t = canvas(); const tc = ctx2(t); tc.drawImage(img.canvas || img.elt, 0, 0, W, H);
+      const t = canvas(); const tc = ctx2(t, true); tc.drawImage(img.canvas || img.elt, 0, 0, W, H);
       const px = tc.getImageData(0, 0, W, H).data, L = new Float32Array(W * H);
       for (let i = 0; i < W * H; i++) L[i] = 0.3 * px[4 * i] + 0.59 * px[4 * i + 1] + 0.11 * px[4 * i + 2];   // luminance: white letters stand out from the pink sky
       const R = 3, filt = (src, op) => {           // separable min/max over (2R+1)²
