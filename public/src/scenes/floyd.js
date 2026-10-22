@@ -45,6 +45,8 @@ export default {
     title: { label: 'Neon title', on: true },
     searchlights: { label: 'Searchlights', on: false },
     concert: { label: 'Concert colours (on the beat)', on: false },
+    guides: { label: 'Alignment guides', on: false },
+    writeTitle: { label: 'Write the title now', action: true },
     teardown: { label: 'Tear down the wall', action: true },
   },
   create(p, g, ctx) {
@@ -124,6 +126,7 @@ export default {
 
     // ---- tear down (one-shot) ----
     let tear = null;   // { t, cracks, cells }
+    let titleAt = null; // when "write the title now" was pressed
     function startTear() {
       const cracks = [];
       const walk = (x, y, ang, len, w, depth) => {
@@ -147,7 +150,11 @@ export default {
 
     return {
       draw(t, dt) {
-        for (const a of flags.actions.splice(0)) if (a.scene === 'floyd' && a.key === 'teardown' && !tear) startTear();
+        for (const a of flags.actions.splice(0)) {
+          if (a.scene !== 'floyd') continue;
+          if (a.key === 'teardown' && !tear) startTear();
+          if (a.key === 'writeTitle') titleAt = t;
+        }
         const beat = (performance.now() / 1000 - flags.party.t0) * (flags.party.bpm / 60);
         const pulse = Math.exp(-(beat % 1) * 4);
         const day = fx('sky') ? dayAt((t / DAY + 0.15) % 1) : { col: [255, 238, 225], lvl: 1, night: 0 };
@@ -268,10 +275,24 @@ export default {
           c.globalCompositeOperation = 'lighter'; c.fillStyle = gr; c.fillRect(0, 0, W, H); c.globalCompositeOperation = 'source-over';
         }
 
+        // Alignment guides: thin outlines of everything placed by hand, to check them
+        // against the print.
+        if (fx('guides')) {
+          c.strokeStyle = 'rgba(120,255,160,0.9)'; c.lineWidth = 1.5;
+          c.beginPath(); RIDGE.forEach(([x, y], i) => (i ? c.lineTo(X(x), Y(y)) : c.moveTo(X(x), Y(y)))); c.stroke();
+          c.beginPath(); FLAG.forEach(([x, y], i) => (i ? c.lineTo(X(x), Y(y)) : c.moveTo(X(x), Y(y)))); c.stroke();
+          c.beginPath(); FLAG2.forEach(([x, y], i) => (i ? c.lineTo(X(x), Y(y)) : c.moveTo(X(x), Y(y)))); c.stroke();
+          c.beginPath(); c.arc(X(EMBLEM.x), Y(EMBLEM.y), EMBLEM.r * k, 0, 7); c.stroke();
+          for (const b of TITLE) c.strokeRect(X(b.x), Y(b.y), b.w * k, b.h * kyy);
+          for (const [px, py] of PENNANTS) { c.beginPath(); c.arc(X(px), Y(py), 4, 0, 7); c.stroke(); }
+          for (let i = 0; i < HEADS.n; i++) { const u = i / (HEADS.n - 1); c.beginPath(); c.arc(X(HEADS.from[0] + (HEADS.to[0] - HEADS.from[0]) * u), Y(HEADS.from[1] + (HEADS.to[1] - HEADS.from[1]) * u), 3, 0, 7); c.stroke(); }
+          c.globalAlpha = 0.9; c.drawImage(title, 0, 0); c.globalAlpha = 1;
+        }
+
         // Neon title: every 75 s, a pen of light writes it left to right, it glows a while,
         // then fades.
         if (fx('title')) {
-          const cyc = t % 75, sweep = Math.min(1, cyc / 7);
+          const cyc = titleAt != null && t - titleAt < 40 ? t - titleAt : t % 75, sweep = Math.min(1, cyc / 7);
           const hold = cyc < 7 ? 1 : cyc < 32 ? 1 : Math.max(0, 1 - (cyc - 32) / 5);
           if (hold > 0) {
             const flick = 0.85 + 0.15 * Math.sin(t * 23) * Math.sin(t * 7.3);
