@@ -24,7 +24,8 @@ const HEADS = { from: [2, 65.5], to: [41, 46.5], n: 16 };
 const FLAG = [[67.5, 6], [72, 13], [76, 21], [79, 28], [82, 35], [86, 42], [90, 48.5], [94, 54], [99, 59], [103, 63]];
 const FLAG_W = [5.5, 6, 6, 5, 3.5, 2.6, 2, 1.6, 1.2, 0.8];
 const FLAG2 = [[91, 42], [94.5, 47], [97.5, 53], [100.5, 59], [104, 65]];
-const EMBLEM = { x: 76, y: 23, r: 5 };
+// The hammers emblem: a tilted oval (white and red halves) on the big flag.
+const EMBLEM = { x: 76.6, y: 23.3, rx: 4.3, ry: 7.4, rot: -15.4 };
 // Pennants: the top of each pole.
 const PENNANTS = [[73, 54], [86, 56], [91, 41], [97, 65], [101.5, 62], [109, 60], [121, 72], [124.5, 75.5], [139, 81]];
 // Title strokes live in these boxes (cm); the strokes themselves come from the reference.
@@ -53,7 +54,7 @@ export default {
     const { W, H, flags } = ctx;
     const k = W / CM.w, kyy = H / CM.h;
     const X = (x) => x * k, Y = (y) => y * kyy;
-    const c = g.drawingContext;
+    let c = g.drawingContext;           // (swapped briefly to draw into a work canvas)
     const fx = (key) => ctx.fx('floyd', key);
     const canvas = (w = W, h = H) => { const e = document.createElement('canvas'); e.width = w; e.height = h; return e; };
     // Pixel reads only where the title mask is built; everything else stays on the GPU
@@ -70,32 +71,46 @@ export default {
     { const s = ctx2(sky); s.fillStyle = '#fff'; s.filter = 'blur(4px)'; ridgePath(s, false); s.fill(); }
     { const s = ctx2(crowd); s.fillStyle = '#fff'; s.filter = 'blur(3px)'; ridgePath(s, true); s.fill(); }
     // Title strokes: thin bright lines in the title boxes (bright minus its local opening).
-    const title = canvas(), titleGlow = canvas();
+    // Masks found in the reference image (the print, straightened), so the light follows
+    // the artwork itself:
+    //   title    the title's thin white strokes
+    //   strokes  the marching hammers' white handles and heads, below the ridge
+    //   flagM    the big flags' dark cloth, around their centrelines
+    const title = canvas(), titleGlow = canvas(), strokes = canvas(), flagM = canvas();
     p.loadImage('/media/reference.jpg', (img) => {
       const t = canvas(); const tc = ctx2(t, true); tc.drawImage(img.canvas || img.elt, 0, 0, W, H);
       const px = tc.getImageData(0, 0, W, H).data, L = new Float32Array(W * H);
-      for (let i = 0; i < W * H; i++) L[i] = 0.3 * px[4 * i] + 0.59 * px[4 * i + 1] + 0.11 * px[4 * i + 2];   // luminance: white letters stand out from the pink sky
-      const R = 3, filt = (src, op) => {           // separable min/max over (2R+1)²
+      for (let i = 0; i < W * H; i++) L[i] = 0.3 * px[4 * i] + 0.59 * px[4 * i + 1] + 0.11 * px[4 * i + 2];   // luminance: white strokes stand out from the pink sky
+      // Grey-level opening (min then max over a (2R+1)² square): bright - opening = what's
+      // bright and thinner than the square.
+      const filt = (src, op, R) => {
         const a = new Float32Array(W * H), b = new Float32Array(W * H);
         for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let m = src[y * W + x]; for (let d = -R; d <= R; d++) { const xx = Math.min(W - 1, Math.max(0, x + d)); m = op(m, src[y * W + xx]); } a[y * W + x] = m; }
         for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { let m = a[y * W + x]; for (let d = -R; d <= R; d++) { const yy = Math.min(H - 1, Math.max(0, y + d)); m = op(m, a[yy * W + x]); } b[y * W + x] = m; }
         return b;
       };
-      const open = filt(filt(L, Math.min), Math.max);
-      const out = ctx2(title), od = out.createImageData(W, H);
-      const inTitle = (x, y) => TITLE.some((b) => x >= X(b.x) && x < X(b.x + b.w) && y >= Y(b.y) && y < Y(b.y + b.h));
-      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const i = y * W + x, v = inTitle(x, y) ? Math.max(0, Math.min(1, (L[i] - open[i] - 22) / 20)) : 0;
-        od.data[4 * i] = od.data[4 * i + 1] = od.data[4 * i + 2] = 255; od.data[4 * i + 3] = v * 255;
-      }
-      out.putImageData(od, 0, 0);
-      const gl = ctx2(titleGlow); gl.filter = 'blur(6px)'; gl.drawImage(title, 0, 0); gl.drawImage(title, 0, 0);
+      const thin = (R) => { const o = filt(filt(L, Math.min, R), Math.max, R); return (i) => L[i] - o[i]; };
+      const paint = (cv, val) => {
+        const out = ctx2(cv), od = out.createImageData(W, H);
+        for (let i = 0; i < W * H; i++) { od.data[4 * i] = od.data[4 * i + 1] = od.data[4 * i + 2] = 255; od.data[4 * i + 3] = Math.max(0, Math.min(1, val(i % W, (i / W) | 0, i))) * 255; }
+        out.putImageData(od, 0, 0);
+      };
+      const inBox = (x, y, bs) => bs.some((b) => x >= X(b.x) && x < X(b.x + b.w) && y >= Y(b.y) && y < Y(b.y + b.h));
+      const t3 = thin(Math.round(1.4 * k / 2)), t8 = thin(Math.round(3.5 * k / 2));
+      paint(title, (x, y, i) => (inBox(x, y, TITLE) ? (t3(i) - 22) / 20 : 0));
+      // Below the ridge (a little inside, away from the sky's own streaks).
+      const ridgeY = (x) => { const cx = x / k; for (let j = 1; j < RIDGE.length; j++) if (cx <= RIDGE[j][0]) { const [x0, y0] = RIDGE[j - 1], [x1, y1] = RIDGE[j]; return Y(y0 + ((cx - x0) / (x1 - x0)) * (y1 - y0)); } return H; };
+      paint(strokes, (x, y, i) => (y > ridgeY(x) - 2 * kyy ? (t8(i) - 18) / 18 : 0));
+      // Flags: darker than the sky, within reach of the centrelines.
+      const near = (x, y) => [[FLAG, FLAG_W], [FLAG2, FLAG2.map(() => 2.5)]].some(([path, ws]) => path.some(([fx, fy], j) => Math.hypot(x / k - fx, y / kyy - fy) < ws[j] + 2.5));
+      paint(flagM, (x, y, i) => (near(x, y) ? (200 - L[i]) / 25 : 0));
+      const gl = ctx2(titleGlow); gl.filter = 'blur(5px)'; gl.drawImage(title, 0, 0); gl.drawImage(title, 0, 0);
     });
 
     // A soft white dot, drawn scaled for every small glow (cheaper than a gradient each).
     const dot = canvas(64, 64);
     { const d = ctx2(dot), gr = d.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,248,238,1)'); gr.addColorStop(1, 'rgba(255,248,238,0)'); d.fillStyle = gr; d.fillRect(0, 0, 64, 64); }
-    const glow = (x, y, r, a) => { if (a < 0.01) return; c.globalAlpha = Math.min(1, a); c.drawImage(dot, x - r, y - r, 2 * r, 2 * r); };
+    const glow = (x, y, r, a) => { if (a < 0.01) return; c.globalAlpha = Math.min(1, a); c.drawImage(dot, x - r, y - r, 2 * r, 2 * r); c.globalAlpha = 1; };
 
     // Work canvases.
     const fxc = canvas(), fxx = ctx2(fxc);
@@ -220,10 +235,16 @@ export default {
               const [x0, y0] = path[i], [x1, y1] = path[i + 1], x = x0 + (x1 - x0) * s / 4, y = y0 + (y1 - y0) * s / 4;
               const w = (widths ? widths[i] + (widths[i + 1] - widths[i]) * s / 4 : 1.5) * k;
               const v = Math.max(0, Math.sin(u * 14 - t * speed + phase)) ** 2;
-              glow(X(x), Y(y), w * 1.3, 0.16 * v * Math.min(1, u * 4 + 0.2));
+              glow(X(x), Y(y), w * 1.5, 0.75 * v * Math.min(1, u * 4 + 0.2));
             }
           };
-          ripple(FLAG, FLAG_W, 3.2, 0); ripple(FLAG2, null, 3.8, 1.3);
+          c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+          masked(flagM, (f) => {                           // ripples, kept on the cloth
+            const prev = c; c = f; f.globalCompositeOperation = 'lighter';
+            ripple(FLAG, FLAG_W, 3.2, 0); ripple(FLAG2, null, 3.8, 1.3);
+            c = prev;
+          }, 1);
+          c.globalCompositeOperation = 'lighter';
           const gust = ((t % 11) / 3.5) * CM.w * 1.2 - 10;                     // a gust every 11 s
           for (const [px, py] of PENNANTS) {
             const near = Math.exp(-(((px - gust) / 9) ** 2));
@@ -233,36 +254,33 @@ export default {
           c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
         }
 
-        // The march: bands of light step along the crowd, one step per beat; the heads
-        // light up in turn.
+        // The march: the printed hammers light up in bands that step along the crowd, one
+        // step per beat (left, right, left…), with a faint glow on the rest.
         if (fx('march')) {
           const step = Math.floor(beat), within = beat - step;
-          masked(crowd, (f) => {
+          masked(strokes, (f) => {
+            f.fillStyle = 'rgba(255,245,230,0.18)'; f.fillRect(0, 0, W, H);
             const sp = 7 * k, slant = -0.6;                  // the crowd's stripes lean this way
-            f.fillStyle = 'rgba(255,240,225,1)';
-            for (let i = -4; i < CM.w / 7 + 6; i++) {
+            f.fillStyle = 'rgba(255,245,230,1)';
+            for (let i = -4; i < CM.w / 7 + 8; i++) {
               if (((i - step) % 4 + 4) % 4 !== 0) continue;
               const x = i * sp;
-              f.globalAlpha = 0.3 + 0.7 * Math.exp(-within * 3);
-              f.beginPath(); f.moveTo(x, 0); f.lineTo(x + sp * 0.45, 0); f.lineTo(x + sp * 0.45 + slant * H, H); f.lineTo(x + slant * H, H); f.closePath(); f.fill();
+              f.globalAlpha = 0.45 + 0.55 * Math.exp(-within * 3);
+              f.beginPath(); f.moveTo(x, 0); f.lineTo(x + sp * 1.2, 0); f.lineTo(x + sp * 1.2 + slant * H, H); f.lineTo(x + slant * H, H); f.closePath(); f.fill();
             }
-          }, 0.3);
-          c.globalCompositeOperation = 'lighter';
-          for (let i = 0; i < HEADS.n; i++) {
-            if ((i + step) % 2) continue;                    // left, right, left…
-            const u = i / (HEADS.n - 1), x = HEADS.from[0] + (HEADS.to[0] - HEADS.from[0]) * u, y = HEADS.from[1] + (HEADS.to[1] - HEADS.from[1]) * u;
-            glow(X(x), Y(y), (1.2 + u * 1.6) * k * 1.6, 0.5 * pulse);
-          }
-          c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
+          }, 1);
         }
 
-        // The hammers emblem: a red pulse on each beat.
+        // The hammers emblem: its oval flushes red on each beat, with a little halo.
         if (fx('hammers')) {
+          c.save(); c.translate(X(EMBLEM.x), Y(EMBLEM.y)); c.rotate((EMBLEM.rot * Math.PI) / 180);
           c.globalCompositeOperation = 'lighter';
-          const r = EMBLEM.r * k * 1.5, gr = c.createRadialGradient(X(EMBLEM.x), Y(EMBLEM.y), 0, X(EMBLEM.x), Y(EMBLEM.y), r);
-          gr.addColorStop(0, `rgba(255,30,20,${0.25 + 0.55 * pulse})`); gr.addColorStop(0.6, `rgba(255,30,20,${0.15 + 0.3 * pulse})`); gr.addColorStop(1, 'rgba(255,30,20,0)');
-          c.fillStyle = gr; c.fillRect(X(EMBLEM.x) - r, Y(EMBLEM.y) - r, 2 * r, 2 * r);
-          c.globalCompositeOperation = 'source-over';
+          c.scale(EMBLEM.rx * k, EMBLEM.ry * kyy);
+          const gr = c.createRadialGradient(0, 0, 0.9, 0, 0, 1.5);
+          gr.addColorStop(0, `rgba(255,30,20,${0.2 * pulse})`); gr.addColorStop(1, 'rgba(255,30,20,0)');
+          c.fillStyle = gr; c.beginPath(); c.arc(0, 0, 1.5, 0, 7); c.fill();
+          c.fillStyle = `rgba(255,40,25,${0.3 + 0.7 * pulse})`; c.beginPath(); c.arc(0, 0, 1, 0, 7); c.fill();
+          c.restore();
         }
 
         // Concert colours: a coloured wash slides across with every bar.
@@ -282,11 +300,11 @@ export default {
           c.beginPath(); RIDGE.forEach(([x, y], i) => (i ? c.lineTo(X(x), Y(y)) : c.moveTo(X(x), Y(y)))); c.stroke();
           c.beginPath(); FLAG.forEach(([x, y], i) => (i ? c.lineTo(X(x), Y(y)) : c.moveTo(X(x), Y(y)))); c.stroke();
           c.beginPath(); FLAG2.forEach(([x, y], i) => (i ? c.lineTo(X(x), Y(y)) : c.moveTo(X(x), Y(y)))); c.stroke();
-          c.beginPath(); c.arc(X(EMBLEM.x), Y(EMBLEM.y), EMBLEM.r * k, 0, 7); c.stroke();
+          c.beginPath(); c.ellipse(X(EMBLEM.x), Y(EMBLEM.y), EMBLEM.rx * k, EMBLEM.ry * kyy, (EMBLEM.rot * Math.PI) / 180, 0, 7); c.stroke();
           for (const b of TITLE) c.strokeRect(X(b.x), Y(b.y), b.w * k, b.h * kyy);
           for (const [px, py] of PENNANTS) { c.beginPath(); c.arc(X(px), Y(py), 4, 0, 7); c.stroke(); }
           for (let i = 0; i < HEADS.n; i++) { const u = i / (HEADS.n - 1); c.beginPath(); c.arc(X(HEADS.from[0] + (HEADS.to[0] - HEADS.from[0]) * u), Y(HEADS.from[1] + (HEADS.to[1] - HEADS.from[1]) * u), 3, 0, 7); c.stroke(); }
-          c.globalAlpha = 0.9; c.drawImage(title, 0, 0); c.globalAlpha = 1;
+          c.globalAlpha = 0.9; c.drawImage(title, 0, 0); c.drawImage(strokes, 0, 0); c.globalAlpha = 0.35; c.drawImage(flagM, 0, 0); c.globalAlpha = 1;
         }
 
         // Neon title: every 75 s, a pen of light writes it left to right, it glows a while,
@@ -300,11 +318,13 @@ export default {
             masked(null, (f) => {
               f.drawImage(titleGlow, 0, 0); f.drawImage(title, 0, 0);
               f.globalCompositeOperation = 'source-in'; f.fillStyle = 'rgb(255,120,210)'; f.fillRect(0, 0, W, H);
-              f.globalCompositeOperation = 'lighter'; f.globalAlpha = 0.35; f.drawImage(title, 0, 0); f.globalAlpha = 1;
-              f.globalCompositeOperation = 'destination-in';          // only what the pen has written
-              const gr = f.createLinearGradient(front - 30, 0, front + 4, 0);
-              gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
-              f.fillStyle = '#000'; f.fillRect(0, 0, Math.max(0, front - 30), H); f.fillStyle = gr; f.fillRect(front - 30, 0, 34, H);
+              f.globalCompositeOperation = 'lighter'; f.globalAlpha = 0.5; f.drawImage(title, 0, 0); f.drawImage(title, 0, 0); f.globalAlpha = 1;
+              // Only what the pen has written: one fill over the whole canvas (each masking
+              // fill also clears everything outside its own shape).
+              f.globalCompositeOperation = 'destination-in';
+              const gr = f.createLinearGradient(0, 0, W, 0), at = (x) => Math.max(0, Math.min(1, x / W));
+              gr.addColorStop(0, 'rgba(0,0,0,1)'); gr.addColorStop(at(front - 30), 'rgba(0,0,0,1)'); gr.addColorStop(at(front + 4), 'rgba(0,0,0,0)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
+              f.fillStyle = gr; f.fillRect(0, 0, W, H);
             }, hold * flick);
             if (sweep < 1) {                                          // the pen's spark
               c.globalCompositeOperation = 'lighter';
