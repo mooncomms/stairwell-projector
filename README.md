@@ -143,6 +143,17 @@ Each run also writes a `.png` next to the `.json`, with the outlines drawn over 
 - **Searchlights** and **Concert colours** (off at first): beams sweep the sky, and coloured washes slide across with every bar.
 - **Tear down the wall** (a button): cracks spread from the middle, the wall shakes, its pieces fall, darkness, then the light returns from the sky down. It takes about 30 s.
 
+- **Alignment guides** (off at first): thin outlines of everything placed by hand, plus the masks found in the print. Use it to check the calibration.
+- **Write the title now** (a button): runs the neon title straight away.
+
+The march, the flag ripples and the title follow the artwork itself. Their masks are found in the reference image: the thin white strokes of the hammers and the lettering, and the flag's dark cloth.
+
+More scenes for this wall. They rotate every 10 minutes; untick any you don't want on the remote:
+- **bricks** (*Another Brick in the Wall*): dark bricks are laid in front of the artwork, one per beat, until the wall is sealed. Then it falls and the light comes back.
+- **prism** (*Dark Side of the Moon*): a beam of light hits a prism and fans into a rainbow across the sky, pulsing with a heartbeat.
+- **pigs** (*Animals*): the inflatable pig drifts over the sky on its tether, while searchlights hunt for it.
+- **storm:** rain drifts across, and lightning strikes every 6–16 s, with at most two soft flickers per strike.
+
 Tap the tempo on the remote for the march and the pulses. Positions are in cm at the top of `public/src/scenes/floyd.js`. The title's strokes are found in the reference image, which was straightened from a phone photo.
 
 ## Live sky

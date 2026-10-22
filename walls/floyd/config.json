@@ -4,7 +4,7 @@
   "contentHeight": 420,
   "reference": "reference.jpg",
   "playlist": ["floyd", "bricks", "prism", "pigs", "storm"],
-  "sceneSeconds": 900,
+  "sceneSeconds": 600,
   "crossfadeSeconds": 4,
   "brightness": 1.0,
   "schedule": null
