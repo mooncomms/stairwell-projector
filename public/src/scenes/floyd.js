@@ -85,6 +85,7 @@ export default {
     //   strokes  the marching hammers' white handles and heads, below the ridge
     //   flagM    the big flags' dark cloth, around their centrelines
     const title = canvas(), titleGlow = canvas(), strokes = canvas(), flagM = canvas();
+    const marchers = [canvas(), canvas(), canvas(), canvas()];   // the hammers, in 4 groups left to right
     p.loadImage('/media/reference.jpg', (img) => {
       const t = canvas(); const tc = ctx2(t, true); tc.drawImage(img.canvas || img.elt, 0, 0, W, H);
       const px = tc.getImageData(0, 0, W, H).data, L = new Float32Array(W * H);
@@ -123,7 +124,48 @@ export default {
       paint(title, (x, y, i) => tv[i]);
       // Below the ridge (a little inside, away from the sky's own streaks).
       const ridgeY = (x) => { const cx = x / k; for (let j = 1; j < RIDGE.length; j++) if (cx <= RIDGE[j][0]) { const [x0, y0] = RIDGE[j - 1], [x1, y1] = RIDGE[j]; return Y(y0 + ((cx - x0) / (x1 - x0)) * (y1 - y0)); } return H; };
-      paint(strokes, (x, y, i) => (y > ridgeY(x) - 2 * kyy ? (t8(i) - 18) / 18 : 0));
+      // Hammers: thin bright strokes below the ridge, as separate pieces (one hammer's
+      // handle or head each). Dropped: blocky pieces (not drawn lines: light that was on the
+      // print when the reference was photographed) and anything at the tapestry's edges.
+      const sv = new Float32Array(W * H), edge = 1.5;
+      for (let i = 0; i < W * H; i++) {
+        const x = i % W, y = (i / W) | 0;
+        const inside = x > edge * k && x < W - edge * k && y > edge * kyy && y < H - edge * kyy;
+        sv[i] = inside && y > ridgeY(x) - 2 * kyy ? Math.max(0, Math.min(1, (t8(i) - 18) / 18)) : 0;
+      }
+      // Blocks: where a 3 cm square around a pixel is mostly lit (strokes are thin, heads
+      // small; the light blocks fill it).
+      {
+        const on = new Float64Array((W + 1) * (H + 1));
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) on[(y + 1) * (W + 1) + x + 1] = (sv[y * W + x] >= 0.3 ? 1 : 0) + on[y * (W + 1) + x + 1] + on[(y + 1) * (W + 1) + x] - on[y * (W + 1) + x];
+        const r = Math.round(1.5 * k), dense = new Uint8Array(W * H);
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+          const xa = Math.max(0, x - r), xb = Math.min(W, x + r + 1), ya = Math.max(0, y - r), yb = Math.min(H, y + r + 1);
+          const n = on[yb * (W + 1) + xb] - on[ya * (W + 1) + xb] - on[yb * (W + 1) + xa] + on[ya * (W + 1) + xa];
+          if (n / ((xb - xa) * (yb - ya)) > 0.9) dense[y * W + x] = 1;
+        }
+        for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (dense[y * W + x])   // clear the block and its rim
+          for (let yy = Math.max(0, y - r); yy < Math.min(H, y + r + 1); yy++) for (let xx = Math.max(0, x - r); xx < Math.min(W, x + r + 1); xx++) sv[yy * W + xx] = 0;
+      }
+      const owner = new Int32Array(W * H).fill(-1), group = new Int8Array(W * H).fill(-1), st = [];
+      for (let i0 = 0; i0 < W * H; i0++) {
+        if (sv[i0] < 0.3 || owner[i0] >= 0) continue;
+        const comp = []; let x0 = W, x1 = 0, y0 = H, y1 = 0, sx = 0; st.push(i0); owner[i0] = i0;
+        while (st.length) {
+          const i = st.pop(); comp.push(i); const x = i % W, y = (i / W) | 0;
+          x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); sx += x;
+          for (const j of [i - 1, i + 1, i - W, i + W, i - W - 1, i - W + 1, i + W - 1, i + W + 1]) if (j >= 0 && j < W * H && owner[j] < 0 && sv[j] >= 0.3 && Math.abs((j % W) - x) <= 1) { owner[j] = i0; st.push(j); }
+        }
+        const bw = (x1 - x0 + 1) / k, bh = (y1 - y0 + 1) / kyy, fill = comp.length / ((x1 - x0 + 1) * (y1 - y0 + 1));
+        const blocky = bw > 2.5 && bh > 2.5 && fill > 0.5, speck = comp.length < 6;
+        const gIdx = Math.floor(sx / comp.length / k / 4) % 4;               // 4 cm columns, cycling
+        for (const i of comp) group[i] = blocky || speck ? -1 : gIdx;
+      }
+      // Faint bits around a kept stroke belong to it (soft edges).
+      const g0 = group.slice();
+      for (let i = 0; i < W * H; i++) if (g0[i] < 0 && sv[i] > 0) { const n = [i - 1, i + 1, i - W, i + W].find((j) => j >= 0 && j < W * H && g0[j] >= 0 && sv[j] >= 0.3); if (n !== undefined) group[i] = g0[n]; }
+      paint(strokes, (x, y, i) => (group[i] >= 0 ? sv[i] : 0));
+      marchers.forEach((cv, gi) => paint(cv, (x, y, i) => (group[i] === gi ? sv[i] : 0)));
       // Flags: darker than the sky, within reach of the centrelines.
       const near = (x, y) => [[FLAG, FLAG_W], [FLAG2, FLAG2.map(() => 2.5)]].some(([path, ws]) => path.some(([fx, fy], j) => Math.hypot(x / k - fx, y / kyy - fy) < ws[j] + 2.5));
       paint(flagM, (x, y, i) => (near(x, y) ? (200 - L[i]) / 25 : 0));
@@ -277,21 +319,15 @@ export default {
           c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
         }
 
-        // The march: the printed hammers light up in bands that step along the crowd, one
-        // step per beat (left, right, left…), with a faint glow on the rest.
+        // The march: the printed hammers light up group by group, a step to the right on
+        // every beat, with a faint glow on the rest.
         if (fx('march')) {
           const step = Math.floor(beat), within = beat - step;
-          masked(strokes, (f) => {
-            f.fillStyle = 'rgba(255,245,230,0.18)'; f.fillRect(0, 0, W, H);
-            const sp = 7 * k, slant = -0.6;                  // the crowd's stripes lean this way
-            f.fillStyle = 'rgba(255,245,230,1)';
-            for (let i = -4; i < CM.w / 7 + 8; i++) {
-              if (((i - step) % 4 + 4) % 4 !== 0) continue;
-              const x = i * sp;
-              f.globalAlpha = 0.45 + 0.55 * Math.exp(-within * 3);
-              f.beginPath(); f.moveTo(x, 0); f.lineTo(x + sp * 1.2, 0); f.lineTo(x + sp * 1.2 + slant * H, H); f.lineTo(x + slant * H, H); f.closePath(); f.fill();
-            }
-          }, 1);
+          c.globalCompositeOperation = 'lighter';
+          c.globalAlpha = 0.2; c.drawImage(strokes, 0, 0);
+          c.globalAlpha = 0.35 + 0.65 * Math.exp(-within * 2.5); c.drawImage(marchers[((step % 4) + 4) % 4], 0, 0);
+          c.globalAlpha = 0.25 * Math.exp(-within * 2.5); c.drawImage(marchers[(((step - 1) % 4) + 4) % 4], 0, 0);   // the last step fading
+          c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
         }
 
         // The hammers emblem: its oval flushes red on each beat, with a little halo.
