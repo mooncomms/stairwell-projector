@@ -319,15 +319,10 @@ export default {
         // Alignment guides: thin outlines of everything placed by hand, to check them
         // against the print.
         if (fx('guides')) {
-          c.strokeStyle = 'rgba(120,255,160,0.9)'; c.lineWidth = 1.5;
-          c.beginPath(); RIDGE.forEach(([x, y], i) => (i ? c.lineTo(X(x), Y(y)) : c.moveTo(X(x), Y(y)))); c.stroke();
-          c.beginPath(); FLAG.forEach(([x, y], i) => (i ? c.lineTo(X(x), Y(y)) : c.moveTo(X(x), Y(y)))); c.stroke();
-          c.beginPath(); FLAG2.forEach(([x, y], i) => (i ? c.lineTo(X(x), Y(y)) : c.moveTo(X(x), Y(y)))); c.stroke();
-          c.beginPath(); c.ellipse(X(EMBLEM.x), Y(EMBLEM.y), EMBLEM.rx * k, EMBLEM.ry * kyy, (EMBLEM.rot * Math.PI) / 180, 0, 7); c.stroke();
-          for (const b of TITLE) c.strokeRect(X(b.x), Y(b.y), b.w * k, b.h * kyy);
-          for (const [px, py] of PENNANTS) { c.beginPath(); c.arc(X(px), Y(py), 4, 0, 7); c.stroke(); }
-          for (let i = 0; i < HEADS.n; i++) { const u = i / (HEADS.n - 1); c.beginPath(); c.arc(X(HEADS.from[0] + (HEADS.to[0] - HEADS.from[0]) * u), Y(HEADS.from[1] + (HEADS.to[1] - HEADS.from[1]) * u), 3, 0, 7); c.stroke(); }
-          c.globalAlpha = 0.9; c.drawImage(title, 0, 0); c.drawImage(strokes, 0, 0); c.globalAlpha = 0.35; c.drawImage(flagM, 0, 0); c.globalAlpha = 1;
+          // Only what was found in the print (title and hammer strokes, flag cloth), drawn
+          // bright: on a good calibration it sits exactly on the printed lines.
+          c.fillStyle = '#000'; c.fillRect(0, 0, W, H);
+          c.globalAlpha = 1; c.drawImage(title, 0, 0); c.drawImage(strokes, 0, 0); c.globalAlpha = 0.3; c.drawImage(flagM, 0, 0); c.globalAlpha = 1;
         }
 
         // Neon title: every 75 s, a pen of light writes it left to right, it glows a while,
