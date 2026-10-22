@@ -90,6 +90,11 @@ export default {
       const gl = ctx2(titleGlow); gl.filter = 'blur(6px)'; gl.drawImage(title, 0, 0); gl.drawImage(title, 0, 0);
     });
 
+    // A soft white dot, drawn scaled for every small glow (cheaper than a gradient each).
+    const dot = canvas(64, 64);
+    { const d = ctx2(dot), gr = d.createRadialGradient(32, 32, 0, 32, 32, 32); gr.addColorStop(0, 'rgba(255,248,238,1)'); gr.addColorStop(1, 'rgba(255,248,238,0)'); d.fillStyle = gr; d.fillRect(0, 0, 64, 64); }
+    const glow = (x, y, r, a) => { if (a < 0.01) return; c.globalAlpha = Math.min(1, a); c.drawImage(dot, x - r, y - r, 2 * r, 2 * r); };
+
     // Work canvases.
     const fxc = canvas(), fxx = ctx2(fxc);
     const snap = canvas(), snapx = ctx2(snap);
@@ -208,9 +213,7 @@ export default {
               const [x0, y0] = path[i], [x1, y1] = path[i + 1], x = x0 + (x1 - x0) * s / 4, y = y0 + (y1 - y0) * s / 4;
               const w = (widths ? widths[i] + (widths[i + 1] - widths[i]) * s / 4 : 1.5) * k;
               const v = Math.max(0, Math.sin(u * 14 - t * speed + phase)) ** 2;
-              const gr = c.createRadialGradient(X(x), Y(y), 0, X(x), Y(y), w * 1.3);
-              gr.addColorStop(0, `rgba(255,245,235,${0.16 * v * Math.min(1, u * 4 + 0.2)})`); gr.addColorStop(1, 'rgba(255,245,235,0)');
-              c.fillStyle = gr; c.fillRect(X(x) - w * 1.3, Y(y) - w * 1.3, w * 2.6, w * 2.6);
+              glow(X(x), Y(y), w * 1.3, 0.16 * v * Math.min(1, u * 4 + 0.2));
             }
           };
           ripple(FLAG, FLAG_W, 3.2, 0); ripple(FLAG2, null, 3.8, 1.3);
@@ -218,13 +221,9 @@ export default {
           for (const [px, py] of PENNANTS) {
             const near = Math.exp(-(((px - gust) / 9) ** 2));
             const fl = 0.5 + 0.5 * Math.sin(t * 9 + px);
-            const a = near * (0.25 + 0.25 * fl);
-            if (a < 0.01) continue;
-            const gr = c.createRadialGradient(X(px + 3.5), Y(py + 3), 0, X(px + 3.5), Y(py + 3), 6 * k);
-            gr.addColorStop(0, `rgba(255,250,240,${a})`); gr.addColorStop(1, 'rgba(255,250,240,0)');
-            c.fillStyle = gr; c.fillRect(X(px - 3), Y(py - 3), 13 * k, 13 * k);
+            glow(X(px + 3.5), Y(py + 3), 6 * k, near * (0.25 + 0.25 * fl));
           }
-          c.globalCompositeOperation = 'source-over';
+          c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
         }
 
         // The march: bands of light step along the crowd, one step per beat; the heads
@@ -245,11 +244,9 @@ export default {
           for (let i = 0; i < HEADS.n; i++) {
             if ((i + step) % 2) continue;                    // left, right, left…
             const u = i / (HEADS.n - 1), x = HEADS.from[0] + (HEADS.to[0] - HEADS.from[0]) * u, y = HEADS.from[1] + (HEADS.to[1] - HEADS.from[1]) * u;
-            const r = (1.2 + u * 1.6) * k, gr = c.createRadialGradient(X(x), Y(y), 0, X(x), Y(y), r * 1.6);
-            gr.addColorStop(0, `rgba(255,250,240,${0.5 * pulse})`); gr.addColorStop(1, 'rgba(255,250,240,0)');
-            c.fillStyle = gr; c.fillRect(X(x) - r * 1.6, Y(y) - r * 1.6, r * 3.2, r * 3.2);
+            glow(X(x), Y(y), (1.2 + u * 1.6) * k * 1.6, 0.5 * pulse);
           }
-          c.globalCompositeOperation = 'source-over';
+          c.globalCompositeOperation = 'source-over'; c.globalAlpha = 1;
         }
 
         // The hammers emblem: a red pulse on each beat.

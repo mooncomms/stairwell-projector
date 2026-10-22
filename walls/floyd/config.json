@@ -1,7 +1,7 @@
 {
   "title": "The Wall",
   "wall": { "widthM": 1.45, "heightM": 0.9 },
-  "contentHeight": 620,
+  "contentHeight": 420,
   "reference": "reference.jpg",
   "playlist": ["floyd"],
   "sceneSeconds": 900,
