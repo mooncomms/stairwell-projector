@@ -71,6 +71,8 @@ export default {
 
 The top-left of `g` is the top-left corner of the wall, and `pxPerM` converts metres to pixels.
 
+**Effects:** a scene can list switchable parts as `effects: { key: { label, on } }`. The remote shows a checkbox for each, saved per wall, and the scene asks `ctx.fx('<scene>', key)` while drawing. An effect with `action: true` is a one-shot button instead; it arrives in `ctx.flags.actions` as `{ scene, key }`. With `tempo: true` the remote shows the tap-tempo row, and the beat is `ctx.flags.party` (`bpm`, and `t0`, when a beat fell).
+
 ## Media
 Put photos (`jpg`/`png`/`webp`) and videos (`mp4`/`webm`) in the wall's `media/` folder (for example `walls/stairwell/media/`). The `nature` scene shuffles them, crops them to fill the wall, and plays them with slow zooms and crossfades. Portrait or 4K material works best. Pexels, Pixabay and NASA's image library are good free sources.
 
@@ -129,6 +131,19 @@ $PY tools/dancer/cutout.py 36512-720.mp4 $O/pole-rooftop.json --method person --
 ```
 
 Each run also writes a `.png` next to the `.json`, with the outlines drawn over eight frames, to check the cut-out. The best clips have a still camera, the whole body in frame, and a plain background. Placement (pinned to the floor, a pole, or a disc), life-size scale and which looks suit each dancer are in `DANCERS` at the top of `public/src/scenes/party.js`. A new file without an entry there still plays, with guessed placement.
+
+## The Wall
+**The Wall** (`walls/floyd`) is a 145 × 90 cm Pink Floyd *The Wall* tapestry. The `floyd` scene lights the artwork itself, and each part is switched on or off under **Effects** on the remote:
+- **Room light:** a soft warm wash, so the tapestry shows in a dark room.
+- **Living sky:** light drifts along the sky's brush streaks, and its colour follows a slow 8-minute day: dawn, day, dusk, then night with stars.
+- **Flags in the wind:** ripples run down the big flag, and gusts pass through the pennants.
+- **The march:** bands of light step along the crowd on the beat, and the row of heads lights up left, right, left.
+- **Hammers pulse:** the emblem glows red on the beat.
+- **Neon title:** every 75 s, "Pink Floyd The Wall" writes itself in neon, glows, and fades.
+- **Searchlights** and **Concert colours** (off at first): beams sweep the sky, and coloured washes slide across with every bar.
+- **Tear down the wall** (a button): cracks spread from the middle, the wall shakes, its pieces fall, darkness, then the light returns from the sky down. It takes about 30 s.
+
+Tap the tempo on the remote for the march and the pulses. Positions are in cm at the top of `public/src/scenes/floyd.js`. The title's strokes are found in the reference image, which was straightened from a phone photo.
 
 ## Live sky
 The `sky` scene shows the real sky right now: sun position, colours, clouds, stars and moon phase. Set it up in the wall's `config.json` under `"sky"`:

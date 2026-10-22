@@ -47,6 +47,18 @@ const send = (cmd) => fetch(`${base}/api/cmd`, { method: 'POST', headers: { 'Con
 await send({ type: 'goto', url: '/autocal.html' });
 await new Promise((r) => setTimeout(r, 4000));
 const back = () => send({ type: 'goto', url: '/' });
+// Does the pattern page answer? (It doesn't when something covers it on the box's screen,
+// e.g. a browser tab opened over the kiosk: a background tab stops drawing.)
+{
+  const seq = Date.now() % 1e6;
+  await send({ type: 'autocal', seq, kind: 'black' });
+  let ok = false;
+  for (let i = 0; i < 40 && !ok; i++) {
+    ok = (await (await fetch(`${base}/api/autocal-ack`)).json())?.seq === seq;
+    if (!ok) await new Promise((r) => setTimeout(r, 100));
+  }
+  if (!ok) { await back(); fail('the projector page isn\'t responding. Is something covering it on the box\'s screen (another window, or a browser tab opened over the kiosk)?'); }
+}
 console.log(`autocal: wall ${wall} → ${out}`);
 // The capture talks to the projector over USB for ~30 s; retry once if the link hiccups.
 try {
