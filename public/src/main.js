@@ -22,8 +22,9 @@ import lavalamp from './scenes/lavalamp.js';
 import glow from './scenes/glow.js';
 import traffic from './scenes/traffic.js';
 import party, { LOOKS } from './scenes/party.js';
+import floyd from './scenes/floyd.js';
 
-const SCENES = [starfield, nebula, boids, trippy, nature, icarus, painting, underwater, destroyer, jellyfish, rain, aurora, sky, lavalamp, glow, traffic, party, testcard];
+const SCENES = [starfield, nebula, boids, trippy, nature, icarus, painting, underwater, destroyer, jellyfish, rain, aurora, sky, lavalamp, glow, traffic, party, floyd, testcard];
 
 const [config, savedCal] = await Promise.all([
   fetch('/api/config').then((r) => r.json()),
@@ -61,6 +62,12 @@ const flags = {
   party: { bpm: config.party?.bpm ?? 124, t0: performance.now() / 1000, auto: true, look: null, dancer: null, cmds: [] },
 };
 const ctx = { W, H, wall, config, panels, flags, pxPerM: H / wall.heightM };
+// Scene effects (a scene's `effects: { key: { label, on, action? } }`): switched on and off
+// from the remote, saved per wall with the calibration. Actions are one-shot buttons, queued
+// in flags.actions for the scene to pick up.
+flags.actions = [];
+const DEFS = Object.fromEntries(SCENES.map((d) => [d.name, d]));
+ctx.fx = (scene, key) => ctx.cal?.effects?.[scene]?.[key] ?? DEFS[scene]?.effects?.[key]?.on ?? true;
 
 // Window frames (walls with "frames": true). Chosen per wall from the remote and saved
 // with its calibration: 'auto' = each scene's own default, 'none', or a frame name.
@@ -88,7 +95,8 @@ new p5((p) => {
 
     out = new Output(p);
     const cal = savedCal || defaultCalibration(p.width, p.height, wall.widthM / wall.heightM);
-    calib = new Calibrator(cal, (c) => { out.setCalibration(c); out.setPanels(maskPanels(c.gapGrow), panelShifts(c), panelScales(c)); reportState(); });
+    calib = new Calibrator(cal, (c) => { out.setCalibration(c); out.setPanels(maskPanels(c.gapGrow), panelShifts(c), panelScales(c)); ctx.cal = c; reportState(); });
+    ctx.cal = calib.cal;
     out.setCalibration(cal);
     out.setPanels(maskPanels(cal.gapGrow), panelShifts(cal), panelScales(cal));
     // Build the window frames up front (building them mid-draw gave broken canvases).
@@ -255,6 +263,15 @@ new p5((p) => {
       case 'prev': scenes.prev(); break;
       case 'blackout': blackout = cmd.on ?? !blackout; break;
       case 'spotlight': flags.spotlight = cmd.on ?? !flags.spotlight; break;
+      case 'effect': {             // a scene effect: on/off (saved), or a one-shot action
+        const def = DEFS[scenes.name], e = def?.effects?.[cmd.key];
+        if (!e) break;
+        if (e.action) { flags.actions.push({ scene: def.name, key: cmd.key }); break; }
+        const all = { ...(c.effects || {}) };
+        all[def.name] = { ...(all[def.name] || {}), [cmd.key]: cmd.on ?? !ctx.fx(def.name, cmd.key) };
+        calib.set('effects', all);
+        break;
+      }
       case 'party': {
         const pt = flags.party;
         if (cmd.bpm) pt.bpm = Math.max(60, Math.min(200, +cmd.bpm));
@@ -357,6 +374,8 @@ new p5((p) => {
           wall: config.wallName, scenes: (scenes.playlist.length ? scenes.playlist : SCENES.map((s) => s.name)), scene: scenes.name, blackout, spotlight: config.spotlight ? flags.spotlight : null, autocal: true,
           frames: config.frames ? FRAME_NAMES : null, frame: calib.cal.frame ?? 'auto',
           rotationOff: c.rotationOff || [], held: SCENES.filter((d) => d.hold).map((d) => d.name),
+          effects: DEFS[scenes.name]?.effects ? Object.entries(DEFS[scenes.name].effects).map(([key, e]) => ({ key, label: e.label, action: !!e.action, on: e.action ? false : ctx.fx(scenes.name, key) })) : null,
+          tempo: DEFS[scenes.name]?.tempo ? Math.round(flags.party.bpm) : null,
           party: scenes.name === 'party' ? { looks: LOOKS, dancers: flags.party.dancers || {}, look: flags.party.look, dancer: flags.party.dancer, auto: flags.party.auto, bpm: Math.round(flags.party.bpm) } : null,
           fps: Math.round(fps),
           calibrating: calib.active, pattern: calib.pattern, dirty: calib.dirty,

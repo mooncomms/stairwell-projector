@@ -29,7 +29,8 @@ const POP = ['#ff2d95', '#b4ff00', '#00e5ff', '#ff8a00', '#ffe600', '#8a5cff', '
 
 export default {
   name: 'party',
-  hold: true,                 // stays until changed; not part of the ambient rotation
+  hold: true,
+  tempo: true,                // uses the beat: the remote shows tap tempo                 // stays until changed; not part of the ambient rotation
   create(p, g, { W, H, pxPerM, flags, config }) {
     const SIZE = config.party?.size ?? 0.9;      // 1 = life size
     const c = g.drawingContext;

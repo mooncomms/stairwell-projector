@@ -36,6 +36,8 @@
     .scn.out button:not(.on) { color: var(--dim); border-style: dashed; }
     .scn .rot { position: absolute; top: 0; right: 0; bottom: 0; width: 34px; display: flex; align-items: center; justify-content: center; margin: 0; }
     .scn .rot input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; }
+    .fxl { margin: 6px 0; } .fxl span { width: auto; color: var(--fg); }
+    .fxl input { width: 22px; height: 22px; accent-color: var(--accent); margin: 0; }
     #calib { display: none; }
     #calib.show { display: block; }
   </style>
@@ -64,17 +66,18 @@
   <div class="row" id="spotRow">
     <button id="spotlight" data-cmd='{"type":"spotlight"}'>Spotlight</button>
   </div>
+  <div class="row" id="tempoRow">
+    <button id="bpmDown">−</button>
+    <button id="partyTap" style="flex:3">Tap tempo</button>
+    <button id="bpmUp">+</button>
+  </div>
+  <div id="fxBox"><h2>Effects</h2><div id="fx"></div></div>
   <div id="partyBox">
     <div class="row">
       <label style="margin:0;flex:1"><span>Look</span><select id="partyLook" style="flex:1;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:12px 8px;font:inherit"></select></label>
     </div>
     <div class="row">
       <label style="margin:0;flex:1"><span>Dancer</span><select id="partyDancer" style="flex:1;background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:12px 8px;font:inherit"></select></label>
-    </div>
-    <div class="row">
-      <button id="bpmDown">−</button>
-      <button id="partyTap" style="flex:3">Tap tempo</button>
-      <button id="bpmUp">+</button>
     </div>
     <div class="row">
       <button id="partyAuto" data-cmd='{"type":"party","action":"auto"}'>Auto</button>
@@ -244,8 +247,11 @@
       send(cmd);
       $('partyTap').textContent = cmd.bpm ? `Tap · ${cmd.bpm} bpm` : 'Tap again…';
     });
-    $('bpmDown').addEventListener('click', () => send({ type: 'party', bpm: (state.party?.bpm || 124) - 2 }));
-    $('bpmUp').addEventListener('click', () => send({ type: 'party', bpm: (state.party?.bpm || 124) + 2 }));
+    $('bpmDown').addEventListener('click', () => send({ type: 'party', bpm: (state.tempo || 124) - 2 }));
+    $('bpmUp').addEventListener('click', () => send({ type: 'party', bpm: (state.tempo || 124) + 2 }));
+    // Scene effects: a checkbox each, or a button for one-shot actions.
+    $('fx').addEventListener('change', (e) => { const k = e.target.dataset.fx; if (k) send({ type: 'effect', key: k, on: e.target.checked }); });
+    $('fx').addEventListener('click', (e) => { const b = e.target.closest('button[data-fxa]'); if (b) send({ type: 'effect', key: b.dataset.fxa }); });
 
     // Scene checkboxes: in or out of the automatic rotation.
     $('scenes').addEventListener('change', (e) => {
@@ -308,7 +314,13 @@
         fill('partyDancer', s.party.dancers, s.party.dancer);
         $('partyAuto').classList.toggle('on', !!s.party.auto);
         $('partyAuto').textContent = s.party.auto ? 'Auto: changes every 16 bars' : 'Auto: off';
-        if (!taps.length || performance.now() - taps[taps.length - 1] > 2000) $('partyTap').textContent = `Tap tempo · ${s.party.bpm} bpm`;
+      }
+      $('tempoRow').style.display = s.tempo ? '' : 'none';
+      if (s.tempo && (!taps.length || performance.now() - taps[taps.length - 1] > 2000)) $('partyTap').textContent = `Tap tempo · ${s.tempo} bpm`;
+      $('fxBox').style.display = s.effects ? '' : 'none';
+      if (s.effects && !$('fx').contains(document.activeElement)) {
+        $('fx').innerHTML = s.effects.filter((e) => !e.action).map((e) => `<label class="fxl"><input type="checkbox" data-fx="${e.key}"${e.on ? ' checked' : ''}><span>${e.label}</span></label>`).join('')
+          + s.effects.filter((e) => e.action).map((e) => `<div class="row"><button data-fxa="${e.key}">${e.label}</button></div>`).join('');
       }
       $('spotlight').classList.toggle('on', !!s.spotlight);
       $('spotlight').textContent = s.spotlight ? 'Spotlight: on' : 'Spotlight: off';
