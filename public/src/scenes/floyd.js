@@ -34,6 +34,14 @@ const TITLE = [{ x: 13, y: 8, w: 48, h: 24 }, { x: 82, y: 6, w: 61, h: 45 }];
 const LIGHTS = [{ x: 28, y: 53, a: 0 }, { x: 78, y: 62, a: 2.2 }, { x: 118, y: 80, a: 4.1 }];
 const DAY = 8 * 60;   // seconds for a whole day in the sky
 
+// Shared with the other scenes for this tapestry.
+export const ART = { CM, RIDGE, FLAG, FLAG_W, FLAG2, EMBLEM, PENNANTS, TITLE, LIGHTS };
+// The wall's ridge height (cm) at x (cm).
+export function ridgeAt(x) {
+  for (let i = 1; i < RIDGE.length; i++) if (x <= RIDGE[i][0]) { const [x0, y0] = RIDGE[i - 1], [x1, y1] = RIDGE[i]; return y0 + ((x - x0) / (x1 - x0)) * (y1 - y0); }
+  return RIDGE[RIDGE.length - 1][1];
+}
+
 export default {
   name: 'floyd',
   tempo: true,

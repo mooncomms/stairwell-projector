@@ -3,7 +3,7 @@
   "wall": { "widthM": 1.45, "heightM": 0.9 },
   "contentHeight": 420,
   "reference": "reference.jpg",
-  "playlist": ["floyd"],
+  "playlist": ["floyd", "bricks", "prism", "pigs", "storm"],
   "sceneSeconds": 900,
   "crossfadeSeconds": 4,
   "brightness": 1.0,
