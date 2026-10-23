@@ -44,7 +44,7 @@ export default {
     // Shadow: a slowly learned picture of the lit wall; where it suddenly goes much darker,
     // someone is in the beam. It stops learning under a shadow, so standing still doesn't
     // fade you out.
-    const bg = new Float32Array(GW * GH), shadow = new Uint8Array(GW * GH);
+    const bg = new Float32Array(GW * GH), shadow = new Uint8Array(GW * GH), age = new Uint16Array(GW * GH);
     const shadowC = mk(GW, GH), shX = shadowC.getContext('2d'), shD = shX.createImageData(GW, GH);
     let shadowCells = [], bgReady = 0, circles = [], lastBeat = -1;
 
@@ -109,13 +109,18 @@ export default {
       if (bgReady < 15) { for (let n = 0; n < GW * GH; n++) bg[n] = bgReady ? bg[n] * 0.8 + L[n] * 0.2 : L[n]; bgReady++; }
       const cells = [], sd = shD.data;
       for (let n = 0; n < GW * GH; n++) {
-        const s0 = bgReady >= 15 && bg[n] > 18 && L[n] < bg[n] * 0.6;
-        shadow[n] = s0 ? 1 : 0;
-        if (s0) cells.push(n); else bg[n] += (L[n] - bg[n]) * 0.03;
-        sd[4 * n] = sd[4 * n + 1] = sd[4 * n + 2] = 255; sd[4 * n + 3] = s0 ? 255 : 0;
+        const dark = bgReady >= 15 && bg[n] > 18 && L[n] < bg[n] * 0.6;
+        age[n] = dark ? Math.min(65535, age[n] + 1) : 0;
+        if (dark && age[n] < 200) cells.push(n);          // dark for 8 s or more: just the wall now
+        else bg[n] += (L[n] - bg[n]) * 0.08;
       }
-      // Specks aren't people: need a decent patch.
-      shadowCells = cells.length > GW * GH * 0.004 ? cells : [];
+      // A person is a patch, not specks, and not most of the wall (that's the light changing:
+      // learn it straight away).
+      const area = cells.length / (GW * GH);
+      if (area > 0.33) { for (const n of cells) { bg[n] = L[n]; age[n] = 0; } cells.length = 0; }
+      shadowCells = area > 0.004 && area <= 0.33 ? cells : [];
+      shadow.fill(0); for (const n of shadowCells) shadow[n] = 1;
+      for (let n = 0; n < GW * GH; n++) { sd[4 * n] = sd[4 * n + 1] = sd[4 * n + 2] = 255; sd[4 * n + 3] = shadow[n] ? 255 : 0; }
       shX.putImageData(shD, 0, 0);
       prevL = L;
       hist.push(camX.getImageData(0, 0, GW, GH));
@@ -222,7 +227,7 @@ export default {
           if (shadowCells.length) {                                      // your shadow, in colour
             tmpX.globalCompositeOperation = 'copy'; tmpX.imageSmoothingEnabled = true; tmpX.drawImage(shadowC, 0, 0, W, H);
             tmpX.globalCompositeOperation = 'source-in'; tmpX.fillStyle = `hsl(${hue},100%,55%)`; tmpX.fillRect(0, 0, W, H);
-            c.globalAlpha = 0.25 + 0.55 * Math.exp(-within * 3); c.drawImage(tmp, 0, 0);
+            c.globalAlpha = 0.15 + 0.35 * Math.exp(-within * 3); c.drawImage(tmp, 0, 0);
           }
           for (const q of circles) {
             const a = (now - q.born) / life, r = q.r0 * (1 + a * 2.5), al = (1 - a) ** 2;
