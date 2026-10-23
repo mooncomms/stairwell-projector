@@ -17,6 +17,7 @@ export default {
   name: 'feedback',
   hold: true,                       // interactive: stays until changed, not in the rotation
   effects: {
+    light: { label: 'Room light (so the camera sees you)', on: true },
     tunnel: { label: 'Feedback tunnel', on: true },
     trails: { label: 'Motion trails', on: true },
     edges: { label: 'Neon edges', on: false },
@@ -37,6 +38,7 @@ export default {
     const hist = [];                                   // past wall-space frames (luma+rgb), for echo
     let lut = null, prevL = null, status = 'connecting to the camera…', frames = 0, lastFrame = 0, disposed = false, ctl = null;
     const motAcc = new Float32Array(GW * GH * 3);
+    let gain = 1;
 
     // Wall cell -> camera pixel (in the stream's own size).
     async function buildLut(fw, fh) {
@@ -68,6 +70,10 @@ export default {
         d[4 * n + 3] = 255; L[n] = 0.3 * d[4 * n] + 0.59 * d[4 * n + 1] + 0.11 * d[4 * n + 2];
       }
       camX.putImageData(camD, 0, 0);
+      // Automatic gain: a dark room still gives a picture to feed back.
+      let sum = 0; for (let n = 0; n < GW * GH; n += 7) sum += L[n];
+      const mean = sum / (GW * GH / 7);
+      gain += (Math.max(0.6, Math.min(6, 70 / Math.max(2, mean))) - gain) * 0.1;
       // Motion: where it got brighter or darker since the last frame, coloured by time.
       if (prevL) {
         const t = performance.now() / 1000, hue = (t * 40) % 360;
@@ -145,7 +151,17 @@ export default {
           fbX.translate(W / 2, H / 2); fbX.rotate(0.006 * Math.sin(t * 0.1) + 0.004); fbX.scale(1.035, 1.035); fbX.translate(-W / 2, -H / 2);
           fbX.globalAlpha = 0.88; fbX.drawImage(tmp, 0, 0);
           fbX.setTransform(1, 0, 0, 1, 0, 0);
-          fbX.globalCompositeOperation = 'lighter'; fbX.globalAlpha = 0.35; fbX.drawImage(cam, 0, 0, W, H);
+          // The camera's view, brightened to a steady level (several passes: 'lighter' adds).
+          fbX.globalCompositeOperation = 'lighter';
+          for (let gg = gain * 0.35; gg > 0.01; gg -= 1) { fbX.globalAlpha = Math.min(1, gg); fbX.drawImage(cam, 0, 0, W, H); }
+          // A seed, so the loop has something to grow from even in a dark, still room:
+          // three soft lights wandering slowly.
+          for (let i = 0; i < 3; i++) {
+            const sx = W * (0.5 + 0.38 * Math.sin(t * (0.13 + i * 0.05) + i * 2)), sy = H * (0.5 + 0.35 * Math.cos(t * (0.11 + i * 0.04) + i));
+            const r = H * 0.07, gr = fbX.createRadialGradient(sx, sy, 0, sx, sy, r);
+            gr.addColorStop(0, `hsla(${(t * 20 + i * 120) % 360},100%,60%,0.5)`); gr.addColorStop(1, 'hsla(0,0%,0%,0)');
+            fbX.globalAlpha = 1; fbX.fillStyle = gr; fbX.fillRect(sx - r, sy - r, 2 * r, 2 * r);
+          }
           // Colours drift: a slow tint over the loop.
           fbX.globalCompositeOperation = 'multiply'; fbX.globalAlpha = 1;
           const h = (t * 12) % 360; fbX.fillStyle = `hsl(${h},70%,82%)`; fbX.fillRect(0, 0, W, H);
@@ -153,6 +169,7 @@ export default {
           c.drawImage(fb, 0, 0);
         }
         c.globalCompositeOperation = 'lighter';
+        if (fx('light')) { c.globalAlpha = 1; c.fillStyle = 'rgba(255,240,225,0.22)'; c.fillRect(0, 0, W, H); }
         if (fx('kaleido')) {
           c.globalAlpha = 0.7;
           for (const [sx, sy] of [[1, 1], [-1, 1], [1, -1], [-1, -1]]) {
