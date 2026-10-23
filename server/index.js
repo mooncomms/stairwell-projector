@@ -143,7 +143,7 @@ function camStart() {
   clearTimeout(camStopTimer);
   if (camProc || autocalJob) return;
   const adb = process.env.ADB || 'adb';
-  camProc = spawn(adb, ['exec-out', '/data/local/tmp/camgrab /dev/video0 stream 320 240 2'], { stdio: ['ignore', 'pipe', 'pipe'] });
+  camProc = spawn(adb, ['exec-out', '/data/local/tmp/camgrab /dev/video0 stream 640 480 4'], { stdio: ['ignore', 'pipe', 'pipe'] });
   camBuf = Buffer.alloc(0);
   camProc.stdout.on('data', (d) => {
     camBuf = Buffer.concat([camBuf, d]);
