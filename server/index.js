@@ -133,7 +133,64 @@ async function serveFile(req, res, baseDir, relPath) {
   fs.createReadStream(file).pipe(res);
 }
 
+// ---- live camera (the projector's built-in camera, over USB debugging) ----
+// One `adb exec-out camgrab stream` while any page is watching; its frames ("CAMF", w, h
+// as uint16 LE, then RGB) go to every watcher, dropping frames for a slow one. Stopped
+// when nobody watches, and while autocal needs the camera.
+const camWatchers = new Set();
+let camProc = null, camBuf = Buffer.alloc(0), camStopTimer = null;
+function camStart() {
+  clearTimeout(camStopTimer);
+  if (camProc || autocalJob) return;
+  const adb = process.env.ADB || 'adb';
+  camProc = spawn(adb, ['exec-out', '/data/local/tmp/camgrab /dev/video0 stream 320 240 2'], { stdio: ['ignore', 'pipe', 'pipe'] });
+  camBuf = Buffer.alloc(0);
+  camProc.stdout.on('data', (d) => {
+    camBuf = Buffer.concat([camBuf, d]);
+    for (;;) {
+      const at = camBuf.indexOf('CAMF');
+      if (at < 0) { camBuf = camBuf.subarray(Math.max(0, camBuf.length - 3)); return; }
+      if (camBuf.length < at + 8) return;
+      const w = camBuf.readUInt16LE(at + 4), h = camBuf.readUInt16LE(at + 6), n = 8 + w * h * 3;
+      if (camBuf.length < at + n) { if (at) camBuf = camBuf.subarray(at); return; }
+      const frame = camBuf.subarray(at, at + n);
+      for (const res of camWatchers) if (res.writableLength < n) res.write(Buffer.from(frame));
+      camBuf = camBuf.subarray(at + n);
+    }
+  });
+  camProc.stderr.on('data', () => {});
+  camProc.on('close', () => { camProc = null; for (const res of camWatchers) res.end(); camWatchers.clear(); });
+}
+function camStop(now = false) {
+  clearTimeout(camStopTimer);
+  const stop = () => { if (camProc) { camProc.kill(); camProc = null; } };
+  now ? stop() : (camStopTimer = setTimeout(() => { if (!camWatchers.size) stop(); }, 5000));
+}
+// Latest structured-light run for the active wall: the camera <-> projector plane mapping.
+async function camInfo() {
+  const name = path.basename(await wallDir());
+  const dir = path.join(DATA, 'autocal');
+  let runs = [];
+  try { runs = (await fsp.readdir(dir)).filter((d) => d.startsWith(name + '-')).sort().reverse(); } catch {}
+  for (const r of runs) {
+    const dec = await readJson(path.join(dir, r, 'decode.json'), null);
+    if (dec?.plane?.H) return { run: r, planeH: dec.plane.H, cam: { w: 640, h: 480 } };
+  }
+  return null;
+}
+
 const routes = {
+  'GET /api/camera/info': async (req, res) => {
+    const info = await camInfo();
+    info ? json(res, 200, info) : json(res, 404, { error: 'no autocal run for this wall yet: run Auto-calibrate first' });
+  },
+  'GET /api/camera/stream': async (req, res) => {
+    if (autocalJob) return json(res, 409, { error: 'the camera is busy (autocal)' });
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store' });
+    camWatchers.add(res);
+    camStart();
+    req.on('close', () => { camWatchers.delete(res); if (!camWatchers.size) camStop(); });
+  },
   'GET /api/calibration': async (req, res) => json(res, 200, await readJson(path.join(await wallDir(), 'calibration.json'), null)),
   'PUT /api/calibration': async (req, res) => {
     const body = await readBody(req);
@@ -197,6 +254,7 @@ const routes = {
   // and streams its progress to the remote as 'autocal-status' events.
   'POST /api/autocal-run': async (req, res) => {
     if (autocalJob) return json(res, 409, { error: 'already running' });
+    camStop(true);                      // autocal needs the camera to itself
     autocalJob = spawn(process.execPath, [path.join(ROOT, 'tools', 'autocal', 'run.mjs'), '--apply', '--port', String(PORT)], { cwd: ROOT });
     const status = (state, line) => { autocalStatus = { state, line, t: Date.now() }; broadcast('autocal-status', autocalStatus); };
     status('running', 'starting…');

@@ -24,8 +24,9 @@ import traffic from './scenes/traffic.js';
 import party, { LOOKS } from './scenes/party.js';
 import floyd from './scenes/floyd.js';
 import { bricks, prism, pigs, storm } from './scenes/floyd-more.js';
+import feedback from './scenes/feedback.js';
 
-const SCENES = [starfield, nebula, boids, trippy, nature, icarus, painting, underwater, destroyer, jellyfish, rain, aurora, sky, lavalamp, glow, traffic, party, floyd, bricks, prism, pigs, storm, testcard];
+const SCENES = [starfield, nebula, boids, trippy, nature, icarus, painting, underwater, destroyer, jellyfish, rain, aurora, sky, lavalamp, glow, traffic, party, floyd, bricks, prism, pigs, storm, feedback, testcard];
 
 const [config, savedCal] = await Promise.all([
   fetch('/api/config').then((r) => r.json()),

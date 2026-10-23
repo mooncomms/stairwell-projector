@@ -7,6 +7,9 @@
 //   camgrab /dev/video0 set ID VALUE               set a control
 //   camgrab /dev/video0 serve W H                  keep streaming; read stdin lines
 //       "grab PATH SKIP" -> drop SKIP frames, save the next one, print "ok PATH"
+//   camgrab /dev/video0 stream W H DIV             live frames on stdout: each is "CAMF",
+//       width and height (uint16 LE), then RGB24, shrunk by DIV (box average). Use with
+//       adb exec-out (binary-safe).
 //       "quit"           -> stop
 //
 // Prefers MJPEG (written as-is: a .jpg); falls back to YUYV (written raw, with a
@@ -73,7 +76,14 @@ int main(int argc, char **argv) {
     if (xioctl(fd, VIDIOC_S_CTRL, &c) < 0) { perror("S_CTRL"); return 1; }
     return 0;
   }
-  int serve = !strcmp(argv[2], "serve");
+  int serve = !strcmp(argv[2], "serve"), stream = !strcmp(argv[2], "stream");
+  int div = 1;
+  if (stream) {
+    static char *fake[] = {0, 0, "grab", "-", 0, 0, 0};
+    fake[1] = argv[1]; fake[4] = argc > 3 ? argv[3] : "320"; fake[5] = argc > 4 ? argv[4] : "240"; fake[6] = "0";
+    div = argc > 5 ? atoi(argv[5]) : 2; if (div < 1) div = 1;
+    argv = fake; argc = 7;
+  }
   if (serve) {
     // Reuse the grab path below, but loop on commands from stdin.
     static char *fake[] = {0, 0, "grab", "", 0, 0, 0};
@@ -112,6 +122,36 @@ int main(int argc, char **argv) {
   }
   enum v4l2_buf_type t = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   if (xioctl(fd, VIDIOC_STREAMON, &t) < 0) { perror("STREAMON"); return 1; }
+
+  if (stream) {
+    if (f.fmt.pix.pixelformat != V4L2_PIX_FMT_YUYV) { fprintf(stderr, "stream needs YUYV\n"); return 1; }
+    unsigned w = f.fmt.pix.width / div, h = f.fmt.pix.height / div, sw = f.fmt.pix.width;
+    unsigned char *rgb = malloc(8 + w * h * 3);
+    memcpy(rgb, "CAMF", 4); rgb[4] = w & 255; rgb[5] = w >> 8; rgb[6] = h & 255; rgb[7] = h >> 8;
+    for (;;) {
+      struct v4l2_buffer b = {0};
+      b.type = t; b.memory = V4L2_MEMORY_MMAP;
+      if (xioctl(fd, VIDIOC_DQBUF, &b) < 0) { perror("DQBUF"); return 1; }
+      const unsigned char *src = ptr[b.index];
+      for (unsigned y = 0; y < h; y++) for (unsigned x = 0; x < w; x++) {
+        int Y = 0, U = 0, V = 0, n = 0;
+        for (unsigned dy = 0; dy < (unsigned)div; dy++) for (unsigned dx = 0; dx < (unsigned)div; dx++) {
+          unsigned sx = x * div + dx, sy = y * div + dy;
+          const unsigned char *p = src + (sy * sw + (sx & ~1u)) * 2;
+          Y += p[(sx & 1) ? 2 : 0]; U += p[1]; V += p[3]; n++;
+        }
+        float c = Y / (float)n - 16, d = U / (float)n - 128, e = V / (float)n - 128;
+        float r = 1.164f * c + 1.596f * e, g = 1.164f * c - 0.392f * d - 0.813f * e, bl = 1.164f * c + 2.017f * d;
+        unsigned char *o = rgb + 8 + (y * w + x) * 3;
+        o[0] = r < 0 ? 0 : r > 255 ? 255 : r; o[1] = g < 0 ? 0 : g > 255 ? 255 : g; o[2] = bl < 0 ? 0 : bl > 255 ? 255 : bl;
+      }
+      if (xioctl(fd, VIDIOC_QBUF, &b) < 0) { perror("QBUF"); return 1; }
+      if (fwrite(rgb, 1, 8 + w * h * 3, stdout) != 8 + w * h * 3) break;   // reader went away
+      fflush(stdout);
+    }
+    xioctl(fd, VIDIOC_STREAMOFF, &t);
+    return 0;
+  }
 
   if (serve) {
     setvbuf(stdout, NULL, _IOLBF, 0);
