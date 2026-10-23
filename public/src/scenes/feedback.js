@@ -16,6 +16,7 @@ const GW = 160;                     // wall-space camera image width (cells)
 export default {
   name: 'feedback',
   hold: true,                       // interactive: stays until changed, not in the rotation
+  tempo: true,                      // beat circles: tap the tempo on the remote
   effects: {
     light: { label: 'Room light (so the camera sees you)', on: true },
     tunnel: { label: 'Feedback tunnel', on: true },
@@ -23,6 +24,7 @@ export default {
     edges: { label: 'Neon edges', on: false },
     echo: { label: 'Echo (3 s ago)', on: false },
     kaleido: { label: 'Kaleidoscope', on: false },
+    circles: { label: 'Beat circles (in your shadow)', on: true },
   },
   create(p, g, ctx) {
     const { W, H } = ctx;
@@ -39,6 +41,12 @@ export default {
     let lut = null, prevL = null, status = 'connecting to the camera…', frames = 0, lastFrame = 0, disposed = false, ctl = null;
     const motAcc = new Float32Array(GW * GH * 3);
     let gain = 1;
+    // Shadow: a slowly learned picture of the lit wall; where it suddenly goes much darker,
+    // someone is in the beam. It stops learning under a shadow, so standing still doesn't
+    // fade you out.
+    const bg = new Float32Array(GW * GH), shadow = new Uint8Array(GW * GH);
+    const shadowC = mk(GW, GH), shX = shadowC.getContext('2d'), shD = shX.createImageData(GW, GH);
+    let shadowCells = [], bgReady = 0, circles = [], lastBeat = -1;
 
     // Wall cell -> camera pixel (in the stream's own size).
     async function buildLut(fw, fh) {
@@ -97,6 +105,18 @@ export default {
         }
         edgX.putImageData(edgD, 0, 0);
       }
+      // Shadow against the learned background.
+      if (bgReady < 15) { for (let n = 0; n < GW * GH; n++) bg[n] = bgReady ? bg[n] * 0.8 + L[n] * 0.2 : L[n]; bgReady++; }
+      const cells = [], sd = shD.data;
+      for (let n = 0; n < GW * GH; n++) {
+        const s0 = bgReady >= 15 && bg[n] > 18 && L[n] < bg[n] * 0.6;
+        shadow[n] = s0 ? 1 : 0;
+        if (s0) cells.push(n); else bg[n] += (L[n] - bg[n]) * 0.03;
+        sd[4 * n] = sd[4 * n + 1] = sd[4 * n + 2] = 255; sd[4 * n + 3] = s0 ? 255 : 0;
+      }
+      // Specks aren't people: need a decent patch.
+      shadowCells = cells.length > GW * GH * 0.004 ? cells : [];
+      shX.putImageData(shD, 0, 0);
       prevL = L;
       hist.push(camX.getImageData(0, 0, GW, GH));
       while (hist.length > 60) hist.shift();
@@ -182,6 +202,35 @@ export default {
         }
         if (fx('trails')) { c.globalAlpha = 1; c.drawImage(motion, 0, 0, W, H); }
         if (fx('edges')) { c.globalAlpha = 1; c.drawImage(edges, 0, 0, W, H); }
+        // Beat circles: a burst of coloured rings on every beat, most of them inside the
+        // shadow; the shadow itself fills with the beat's colour. They pop and fade (no
+        // hard flashing, never faster than the beat).
+        if (fx('circles')) {
+          const beat = (performance.now() / 1000 - ctx.flags.party.t0) * (ctx.flags.party.bpm / 60), b = Math.floor(beat), within = beat - b;
+          const hue = (b * 67) % 360;
+          if (b !== lastBeat) {
+            lastBeat = b;
+            const n = shadowCells.length ? 7 : 4;
+            for (let i = 0; i < n; i++) {
+              let x = Math.random() * W, y = Math.random() * H;
+              if (shadowCells.length && i < 5) { const cell = shadowCells[(Math.random() * shadowCells.length) | 0]; x = ((cell % GW) + 0.5) * (W / GW); y = (((cell / GW) | 0) + 0.5) * (H / GH); }
+              circles.push({ x, y, born: performance.now() / 1000, hue: (hue + Math.random() * 90) % 360, r0: H * (0.03 + Math.random() * 0.05), ring: Math.random() < 0.5 });
+            }
+          }
+          const now = performance.now() / 1000, life = 60 / ctx.flags.party.bpm * 1.6;
+          circles = circles.filter((q) => now - q.born < life);
+          if (shadowCells.length) {                                      // your shadow, in colour
+            tmpX.globalCompositeOperation = 'copy'; tmpX.imageSmoothingEnabled = true; tmpX.drawImage(shadowC, 0, 0, W, H);
+            tmpX.globalCompositeOperation = 'source-in'; tmpX.fillStyle = `hsl(${hue},100%,55%)`; tmpX.fillRect(0, 0, W, H);
+            c.globalAlpha = 0.25 + 0.55 * Math.exp(-within * 3); c.drawImage(tmp, 0, 0);
+          }
+          for (const q of circles) {
+            const a = (now - q.born) / life, r = q.r0 * (1 + a * 2.5), al = (1 - a) ** 2;
+            c.globalAlpha = 1;
+            if (q.ring) { c.strokeStyle = `hsla(${q.hue},100%,60%,${al})`; c.lineWidth = H * 0.012 * (1 - a * 0.5); c.beginPath(); c.arc(q.x, q.y, r, 0, 7); c.stroke(); }
+            else { const gr = c.createRadialGradient(q.x, q.y, 0, q.x, q.y, r); gr.addColorStop(0, `hsla(${q.hue},100%,62%,${al})`); gr.addColorStop(0.7, `hsla(${q.hue},100%,55%,${al * 0.6})`); gr.addColorStop(1, `hsla(${q.hue},100%,50%,0)`); c.fillStyle = gr; c.beginPath(); c.arc(q.x, q.y, r, 0, 7); c.fill(); }
+          }
+        }
         c.globalAlpha = 1; c.globalCompositeOperation = 'source-over';
       },
       dispose() { disposed = true; ctl?.abort(); },
