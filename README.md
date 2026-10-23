@@ -156,6 +156,15 @@ More scenes for this wall. They rotate every 10 minutes; untick any you don't wa
 
 Tap the tempo on the remote for the march and the pulses. Positions are in cm at the top of `public/src/scenes/floyd.js`. The title's strokes are found in the reference image, which was straightened from a phone photo.
 
+## Camera feedback
+The `feedback` scene uses the projector's own camera as live input, over the same USB connection autocal uses. The server streams camera frames to the page (`/api/camera/stream`, via `camgrab … stream`), only while a page is watching, and never during autocal. Each frame is warped into wall space with the wall's latest autocal run plus its calibration, so what the camera sees lines up with the wall. Then it's projected back. Effects, switched on and off on the remote:
+- **Room light:** a dim wash, so the camera can see people.
+- **Feedback tunnel:** the picture is fed back into itself, slightly zoomed and turned, with drifting colours. A few wandering lights seed it, and the camera gain adjusts itself so a dark room still loops.
+- **Motion trails:** anything that moves leaves colour trails.
+- **Neon edges**, **Echo** (the room 3 s ago) and **Kaleidoscope** (a four-way mirror).
+
+It needs an autocal run for the wall. It stays on until you change scene, and it's skipped by the rotation.
+
 ## Live sky
 The `sky` scene shows the real sky right now: sun position, colours, clouds, stars and moon phase. Set it up in the wall's `config.json` under `"sky"`:
 - `lat` and `lon`: your location.
